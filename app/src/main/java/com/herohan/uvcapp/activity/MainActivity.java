@@ -38,6 +38,7 @@ import android.view.MenuItem;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Toast;
+import android.widget.SeekBar;
 
 import java.io.File;
 import java.text.DecimalFormat;
@@ -71,6 +72,8 @@ public class MainActivity extends AppCompatActivity {
 
     private ICameraHelper mCameraHelper;
     private ClipBufferManager mClipBufferManager;
+
+    private static final int[] CLIP_DURATIONS_SECONDS = {30, 60, 90, 120};
 
     private UsbDevice mUsbDevice;
     private final ICameraHelper.StateCallback mStateCallback = new MyCameraHelperCallback();
@@ -212,6 +215,26 @@ public class MainActivity extends AppCompatActivity {
                         toggleVideoRecord(!mIsRecording);
                     });
         });
+
+        mBinding.seekClipDuration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int seconds = CLIP_DURATIONS_SECONDS[Math.max(0, Math.min(progress, CLIP_DURATIONS_SECONDS.length - 1))];
+                mBinding.tvClipDuration.setText(seconds + "s clip");
+                if (mClipBufferManager != null) {
+                    mClipBufferManager.setClipDurationSeconds(seconds);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+        mBinding.seekClipDuration.setProgress(0);
 
         mBinding.btnClipNow.setOnClickListener(v -> {
             if (mClipBufferManager == null) {
@@ -456,6 +479,8 @@ public class MainActivity extends AppCompatActivity {
             if (mClipBufferManager == null) {
                 mClipBufferManager = new ClipBufferManager(MainActivity.this, mCameraHelper);
             }
+            mClipBufferManager.setClipDurationSeconds(
+                    CLIP_DURATIONS_SECONDS[mBinding.seekClipDuration.getProgress()]);
             mClipBufferManager.start();
         }
 
