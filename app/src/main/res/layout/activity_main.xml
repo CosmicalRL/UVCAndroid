@@ -77,6 +77,27 @@
             android:visibility="invisible"
             app:srcCompat="@drawable/ic_switch_camera" />
 
+        <TextView
+            android:id="@+id/tvClipDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/seekClipDuration"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="2dp"
+            android:text="30s clip"
+            android:textColor="@color/white"
+            android:textStyle="bold" />
+
+        <SeekBar
+            android:id="@+id/seekClipDuration"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/btnClipNow"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="8dp"
+            android:max="3"
+            android:progress="0" />
+
         <Button
             android:id="@+id/btnClipNow"
             android:layout_width="wrap_content"
