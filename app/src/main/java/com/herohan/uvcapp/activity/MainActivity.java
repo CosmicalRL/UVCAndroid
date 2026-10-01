@@ -129,6 +129,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (mClipBufferManager != null) {
+            mClipBufferManager.stop();
+        }
         super.onDestroy();
         clearCameraHelper();
     }
@@ -533,6 +536,7 @@ public class MainActivity extends AppCompatActivity {
 
                 mBinding.fabPicture.setVisibility(View.GONE);
                 mBinding.fabVideo.setVisibility(View.GONE);
+                mBinding.btnClipNow.setVisibility(View.GONE);
 
                 mBinding.tvVideoRecordTime.setVisibility(View.GONE);
             }
