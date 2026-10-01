@@ -76,5 +76,21 @@
             android:layout_marginBottom="16dp"
             android:visibility="invisible"
             app:srcCompat="@drawable/ic_switch_camera" />
+
+        <Button
+            android:id="@+id/btnClipNow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="20dp"
+            android:paddingLeft="24dp"
+            android:paddingRight="24dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="@drawable/clip_now_btn_bg"
+            android:text="Clip Now"
+            android:textColor="@color/white"
+            android:textStyle="bold" />
     </RelativeLayout>
 </LinearLayout>
