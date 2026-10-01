@@ -74,7 +74,8 @@ public class MainActivity extends AppCompatActivity {
     private ClipBufferManager mClipBufferManager;
 
     private static final int[] CLIP_DURATIONS_SECONDS = {30, 60, 90, 120};
-    private static final int[] BITRATE_MBPS = {2, 4, 6, 8, 10, 12};
+    private static final int MIN_BITRATE_MBPS = 1;
+    private static final int MAX_BITRATE_MBPS = 250;
     private int mVideoBitrateMbps = 6;
 
     private UsbDevice mUsbDevice;
@@ -241,7 +242,8 @@ public class MainActivity extends AppCompatActivity {
         mBinding.seekClipBitrate.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                mVideoBitrateMbps = BITRATE_MBPS[Math.max(0, Math.min(progress, BITRATE_MBPS.length - 1))];
+                mVideoBitrateMbps = Math.max(MIN_BITRATE_MBPS,
+                        Math.min(MAX_BITRATE_MBPS, progress + MIN_BITRATE_MBPS));
                 mBinding.tvClipBitrate.setText(mVideoBitrateMbps + " Mbps");
                 if (mClipBufferManager != null) {
                     mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
@@ -258,7 +260,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         // 6 Mbps is the default balance of quality and file size.
-        mBinding.seekClipBitrate.setProgress(2);
+        mBinding.seekClipBitrate.setProgress(mVideoBitrateMbps - MIN_BITRATE_MBPS);
 
         mBinding.btnClipNow.setOnClickListener(v -> {
             if (mClipBufferManager == null) {
