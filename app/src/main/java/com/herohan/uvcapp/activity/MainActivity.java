@@ -74,6 +74,8 @@ public class MainActivity extends AppCompatActivity {
     private ClipBufferManager mClipBufferManager;
 
     private static final int[] CLIP_DURATIONS_SECONDS = {30, 60, 90, 120};
+    private static final int[] BITRATE_MBPS = {2, 4, 6, 8, 10, 12};
+    private int mVideoBitrateMbps = 6;
 
     private UsbDevice mUsbDevice;
     private final ICameraHelper.StateCallback mStateCallback = new MyCameraHelperCallback();
@@ -236,11 +238,34 @@ public class MainActivity extends AppCompatActivity {
         });
         mBinding.seekClipDuration.setProgress(0);
 
+        mBinding.seekClipBitrate.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                mVideoBitrateMbps = BITRATE_MBPS[Math.max(0, Math.min(progress, BITRATE_MBPS.length - 1))];
+                mBinding.tvClipBitrate.setText(mVideoBitrateMbps + " Mbps");
+                if (mClipBufferManager != null) {
+                    mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
+                }
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+                applyVideoCaptureConfig();
+            }
+        });
+        // 6 Mbps is the default balance of quality and file size.
+        mBinding.seekClipBitrate.setProgress(2);
+
         mBinding.btnClipNow.setOnClickListener(v -> {
             if (mClipBufferManager == null) {
                 Toast.makeText(this, "Buffer not ready yet", Toast.LENGTH_SHORT).show();
                 return;
             }
+            mBinding.btnClipNow.setEnabled(false);
             Toast.makeText(this, "Saving clip...", Toast.LENGTH_SHORT).show();
             mClipBufferManager.clipNow(new ClipBufferManager.ClipCallback() {
                 @Override
@@ -481,6 +506,8 @@ public class MainActivity extends AppCompatActivity {
             }
             mClipBufferManager.setClipDurationSeconds(
                     CLIP_DURATIONS_SECONDS[mBinding.seekClipDuration.getProgress()]);
+            mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
+            applyVideoCaptureConfig();
             mClipBufferManager.start();
         }
 
@@ -548,6 +575,8 @@ public class MainActivity extends AppCompatActivity {
                 mBinding.fabVideo.setVisibility(View.VISIBLE);
                 mBinding.tvClipDuration.setVisibility(View.VISIBLE);
                 mBinding.seekClipDuration.setVisibility(View.VISIBLE);
+                mBinding.tvClipBitrate.setVisibility(View.VISIBLE);
+                mBinding.seekClipBitrate.setVisibility(View.VISIBLE);
                 mBinding.btnClipNow.setVisibility(View.VISIBLE);
 
                 // Update record button
@@ -566,6 +595,8 @@ public class MainActivity extends AppCompatActivity {
                 mBinding.fabVideo.setVisibility(View.GONE);
                 mBinding.tvClipDuration.setVisibility(View.GONE);
                 mBinding.seekClipDuration.setVisibility(View.GONE);
+                mBinding.tvClipBitrate.setVisibility(View.GONE);
+                mBinding.seekClipBitrate.setVisibility(View.GONE);
                 mBinding.btnClipNow.setVisibility(View.GONE);
 
                 mBinding.tvVideoRecordTime.setVisibility(View.GONE);
@@ -652,10 +683,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setCustomVideoCaptureConfig() {
+        applyVideoCaptureConfig();
+    }
+
+    private void applyVideoCaptureConfig() {
+        if (mCameraHelper == null) {
+            return;
+        }
         mCameraHelper.setVideoCaptureConfig(
                 mCameraHelper.getVideoCaptureConfig()
-//                        .setAudioCaptureEnable(false)
-                        .setBitRate((int) (1024 * 1024 * 25 * 0.25))
+                        .setAudioCaptureEnable(false)
+                        .setBitRate(mVideoBitrateMbps * 1024 * 1024)
                         .setVideoFrameRate(25)
                         .setIFrameInterval(1));
     }
