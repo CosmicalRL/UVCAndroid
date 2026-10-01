@@ -232,7 +232,7 @@ public final class ClipBufferManager {
             return;
         }
 
-        final File output = new File(SaveHelper.getSaveVideoPath());
+        final File output = createUniqueClipFile(input);
 
         muxExecutor.execute(() -> {
             try {
@@ -268,6 +268,26 @@ public final class ClipBufferManager {
                 }
             }
         });
+    }
+
+    private static File createUniqueClipFile(List<File> inputFiles) {
+        File candidate = new File(SaveHelper.getSaveVideoPath());
+
+        // SaveHelper uses second-level timestamps. If Clip Now is pressed
+        // immediately after a segment starts, the generated clip name can
+        // otherwise be identical to the segment we are reading.
+        for (File input : inputFiles) {
+            if (candidate.equals(input)) {
+                String path = candidate.getAbsolutePath();
+                int dot = path.lastIndexOf('.');
+                String base = dot > 0 ? path.substring(0, dot) : path;
+                String extension = dot > 0 ? path.substring(dot) : ".mp4";
+                candidate = new File(base + "_clip_" + System.currentTimeMillis() + extension);
+                break;
+            }
+        }
+
+        return candidate;
     }
 
     private static void muxSegments(List<File> inputFiles, File output) throws IOException {
