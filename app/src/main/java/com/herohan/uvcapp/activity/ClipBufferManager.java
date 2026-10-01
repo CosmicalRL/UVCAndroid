@@ -66,6 +66,7 @@ public final class ClipBufferManager {
     private volatile boolean stoppingForClip;
     private ScheduledFuture<?> rotateFuture;
     private File currentSegment;
+    private ClipCallback pendingClipCallback;
 
     public ClipBufferManager(android.content.Context context, ICameraHelper cameraHelper) {
         this.cameraHelper = cameraHelper;
@@ -108,6 +109,7 @@ public final class ClipBufferManager {
         }
 
         stoppingForClip = true;
+        pendingClipCallback = callback;
         if (rotateFuture != null) {
             rotateFuture.cancel(false);
             rotateFuture = null;
@@ -170,7 +172,8 @@ public final class ClipBufferManager {
                     }
 
                     if (stoppingForClip) {
-                        buildClip(null);
+                        buildClip(pendingClipCallback);
+                        pendingClipCallback = null;
                     } else if (running) {
                         startSegment();
                     }
