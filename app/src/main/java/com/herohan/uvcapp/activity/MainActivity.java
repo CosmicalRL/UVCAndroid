@@ -254,7 +254,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                applyVideoCaptureConfig();
+                // The rolling buffer applies the new bitrate when the next segment starts.
             }
         });
         // 6 Mbps is the default balance of quality and file size.
