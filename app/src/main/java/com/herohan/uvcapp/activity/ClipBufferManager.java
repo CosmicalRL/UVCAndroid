@@ -54,6 +54,7 @@ public final class ClipBufferManager {
     }
 
     private final ICameraHelper cameraHelper;
+    private final android.content.Context context;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor();
@@ -69,6 +70,7 @@ public final class ClipBufferManager {
     private ClipCallback pendingClipCallback;
 
     public ClipBufferManager(android.content.Context context, ICameraHelper cameraHelper) {
+        this.context = context.getApplicationContext();
         this.cameraHelper = cameraHelper;
     }
 
@@ -128,7 +130,7 @@ public final class ClipBufferManager {
             return;
         }
 
-        File output = new File(SaveHelper.getSaveVideoPath());
+        File output = createTemporarySegmentFile();
         currentSegment = output;
 
         VideoCapture.OutputFileOptions options =
@@ -270,21 +272,27 @@ public final class ClipBufferManager {
         });
     }
 
+    private File createTemporarySegmentFile() {
+        File bufferDir = new File(context.getCacheDir(), "clip_buffer");
+        if (!bufferDir.exists() && !bufferDir.mkdirs() && !bufferDir.exists()) {
+            Log.w(TAG, "Could not create clip buffer directory: " + bufferDir);
+        }
+
+        return new File(bufferDir, "segment_" + System.currentTimeMillis() + "_" +
+                Integer.toHexString(System.identityHashCode(this)) + ".mp4");
+    }
+
     private static File createUniqueClipFile(List<File> inputFiles) {
         File candidate = new File(SaveHelper.getSaveVideoPath());
 
-        // SaveHelper uses second-level timestamps. If Clip Now is pressed
-        // immediately after a segment starts, the generated clip name can
-        // otherwise be identical to the segment we are reading.
-        for (File input : inputFiles) {
-            if (candidate.equals(input)) {
-                String path = candidate.getAbsolutePath();
-                int dot = path.lastIndexOf('.');
-                String base = dot > 0 ? path.substring(0, dot) : path;
-                String extension = dot > 0 ? path.substring(dot) : ".mp4";
-                candidate = new File(base + "_clip_" + System.currentTimeMillis() + extension);
-                break;
-            }
+        // SaveHelper uses second-level timestamps. Make the final Clip Now
+        // output unique if a file with that timestamp already exists.
+        if (candidate.exists()) {
+            String path = candidate.getAbsolutePath();
+            int dot = path.lastIndexOf('.');
+            String base = dot > 0 ? path.substring(0, dot) : path;
+            String extension = dot > 0 ? path.substring(dot) : ".mp4";
+            candidate = new File(base + "_clip_" + System.currentTimeMillis() + extension);
         }
 
         return candidate;
