@@ -45,8 +45,11 @@ import java.util.concurrent.TimeUnit;
 public final class ClipBufferManager {
     private static final String TAG = "ClipBufferManager";
     private static final long SEGMENT_MS = 10_000L;
-    private static final int MAX_SEGMENTS = 4;
-    private static final int CLIP_SEGMENTS = 3;
+    private static final int MAX_SEGMENTS = 12;
+    private static final int MIN_CLIP_SECONDS = 30;
+    private static final int MAX_CLIP_SECONDS = 120;
+
+    private volatile int clipDurationSeconds = MIN_CLIP_SECONDS;
 
     public interface ClipCallback {
         void onClipSaved(File outputFile);
@@ -72,6 +75,16 @@ public final class ClipBufferManager {
     public ClipBufferManager(android.content.Context context, ICameraHelper cameraHelper) {
         this.context = context.getApplicationContext();
         this.cameraHelper = cameraHelper;
+    }
+
+    public synchronized void setClipDurationSeconds(int seconds) {
+        int clamped = Math.max(MIN_CLIP_SECONDS, Math.min(MAX_CLIP_SECONDS, seconds));
+        // Keep the duration aligned to the 10-second rolling segment size.
+        clipDurationSeconds = ((clamped + 5) / 10) * 10;
+    }
+
+    public int getClipDurationSeconds() {
+        return clipDurationSeconds;
     }
 
     public synchronized void start() {
@@ -215,8 +228,9 @@ public final class ClipBufferManager {
             stoppingForClip = false;
 
             // The current segment was just added by onVideoSaved.
-            int from = Math.max(0, input.size() - CLIP_SEGMENTS);
-            if (input.size() > CLIP_SEGMENTS) {
+            int clipSegments = Math.max(1, clipDurationSeconds / 10);
+            int from = Math.max(0, input.size() - clipSegments);
+            if (input.size() > clipSegments) {
                 input.subList(0, from).clear();
             }
         }
