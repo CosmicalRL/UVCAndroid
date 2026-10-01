@@ -580,6 +580,7 @@ public class MainActivity extends AppCompatActivity {
                 mBinding.tvClipBitrate.setVisibility(View.VISIBLE);
                 mBinding.seekClipBitrate.setVisibility(View.VISIBLE);
                 mBinding.btnClipNow.setVisibility(View.VISIBLE);
+                mBinding.btnClipNow.setEnabled(true);
 
                 // Update record button
                 int colorId = R.color.WHITE;
