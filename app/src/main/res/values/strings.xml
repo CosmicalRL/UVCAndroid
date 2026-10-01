@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">USB Camera</string>
+    <string name="app_name">Capture Clipper</string>
     <string name="action_control">Controls</string>
     <string name="action_usb">USB</string>
     <string name="action_safely_eject">Safely Eject</string>
