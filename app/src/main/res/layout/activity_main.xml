@@ -96,8 +96,8 @@
             android:layout_above="@id/tvClipDuration"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="2dp"
-            android:max="5"
-            android:progress="2"
+            android:max="249"
+            android:progress="5"
             android:visibility="gone" />
 
         <TextView
