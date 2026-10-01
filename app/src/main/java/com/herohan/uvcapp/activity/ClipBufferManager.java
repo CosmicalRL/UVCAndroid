@@ -51,7 +51,7 @@ public final class ClipBufferManager {
     private static final int MAX_CLIP_SECONDS = 120;
     private static final int DEFAULT_BITRATE_BPS = 6 * 1024 * 1024;
     private static final int MIN_BITRATE_BPS = 1 * 1024 * 1024;
-    private static final int MAX_BITRATE_BPS = 20 * 1024 * 1024;
+    private static final int MAX_BITRATE_BPS = 250 * 1024 * 1024;
 
     private volatile int clipDurationSeconds = MIN_CLIP_SECONDS;
     private volatile int videoBitrateBps = DEFAULT_BITRATE_BPS;
