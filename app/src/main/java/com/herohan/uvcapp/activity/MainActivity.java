@@ -270,11 +270,13 @@ public class MainActivity extends AppCompatActivity {
             mClipBufferManager.clipNow(new ClipBufferManager.ClipCallback() {
                 @Override
                 public void onClipSaved(java.io.File outputFile) {
+                    mBinding.btnClipNow.setEnabled(true);
                     Toast.makeText(MainActivity.this, "Clip saved: " + outputFile.getName(), Toast.LENGTH_SHORT).show();
                 }
 
                 @Override
                 public void onClipFailed(String reason) {
+                    mBinding.btnClipNow.setEnabled(true);
                     Toast.makeText(MainActivity.this, reason, Toast.LENGTH_SHORT).show();
                 }
             });
