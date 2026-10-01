@@ -521,6 +521,7 @@ public class MainActivity extends AppCompatActivity {
 
                 mBinding.fabPicture.setVisibility(View.VISIBLE);
                 mBinding.fabVideo.setVisibility(View.VISIBLE);
+                mBinding.btnClipNow.setVisibility(View.VISIBLE);
 
                 // Update record button
                 int colorId = R.color.WHITE;
