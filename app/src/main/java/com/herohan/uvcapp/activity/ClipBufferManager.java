@@ -48,8 +48,12 @@ public final class ClipBufferManager {
     private static final int MAX_SEGMENTS = 12;
     private static final int MIN_CLIP_SECONDS = 30;
     private static final int MAX_CLIP_SECONDS = 120;
+    private static final int DEFAULT_BITRATE_BPS = 6 * 1024 * 1024;
+    private static final int MIN_BITRATE_BPS = 1 * 1024 * 1024;
+    private static final int MAX_BITRATE_BPS = 20 * 1024 * 1024;
 
     private volatile int clipDurationSeconds = MIN_CLIP_SECONDS;
+    private volatile int videoBitrateBps = DEFAULT_BITRATE_BPS;
 
     public interface ClipCallback {
         void onClipSaved(File outputFile);
@@ -85,6 +89,14 @@ public final class ClipBufferManager {
 
     public int getClipDurationSeconds() {
         return clipDurationSeconds;
+    }
+
+    public synchronized void setVideoBitrateBps(int bitrateBps) {
+        videoBitrateBps = Math.max(MIN_BITRATE_BPS, Math.min(MAX_BITRATE_BPS, bitrateBps));
+    }
+
+    public int getVideoBitrateBps() {
+        return videoBitrateBps;
     }
 
     public synchronized void start() {
@@ -142,6 +154,13 @@ public final class ClipBufferManager {
         if (!running || stoppingForClip || cameraHelper.isRecording()) {
             return;
         }
+
+        // ClipBufferManager never needs microphone audio because the final clip mux is
+        // video-only. Disabling it also makes segment stop/save operations much lighter.
+        cameraHelper.setVideoCaptureConfig(
+                cameraHelper.getVideoCaptureConfig()
+                        .setBitRate(videoBitrateBps)
+                        .setAudioCaptureEnable(false));
 
         File output = createTemporarySegmentFile();
         currentSegment = output;
@@ -353,6 +372,11 @@ public final class ClipBufferManager {
             ByteBuffer buffer = ByteBuffer.allocateDirect(1024 * 1024);
             MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
 
+            long lastOutputPts = -1L;
+            int frameRate = videoFormat.containsKey(MediaFormat.KEY_FRAME_RATE)
+                    ? videoFormat.getInteger(MediaFormat.KEY_FRAME_RATE) : 25;
+            long frameDurationUs = Math.max(1L, 1_000_000L / Math.max(1, frameRate));
+
             for (File file : inputFiles) {
                 MediaExtractor extractor = new MediaExtractor();
                 try {
@@ -364,6 +388,8 @@ public final class ClipBufferManager {
 
                     extractor.selectTrack(track);
                     long firstPts = -1L;
+                    long lastPts = -1L;
+                    boolean segmentStarted = false;
 
                     while (true) {
                         int size = extractor.readSampleData(buffer, 0);
@@ -376,32 +402,42 @@ public final class ClipBufferManager {
                             break;
                         }
 
+                        int flags = extractor.getSampleFlags();
+
+                        // Every joined segment must begin on a keyframe. Starting on a
+                        // predicted frame can make the final MP4 appear frozen until the
+                        // decoder reaches the next sync frame.
+                        if (!segmentStarted
+                                && (flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) == 0) {
+                            extractor.advance();
+                            continue;
+                        }
+
                         if (firstPts < 0) {
                             firstPts = pts;
+                            segmentStarted = true;
                         }
 
                         long relativePts = Math.max(0L, pts - firstPts);
-                        info.set(
-                                0,
-                                size,
-                                timestampOffsetUs + relativePts,
-                                extractor.getSampleFlags());
+                        long outputPts = timestampOffsetUs + relativePts;
+                        if (lastOutputPts >= 0 && outputPts <= lastOutputPts) {
+                            outputPts = lastOutputPts + 1L;
+                        }
 
+                        info.set(0, size, outputPts, flags);
                         buffer.position(0);
                         buffer.limit(size);
                         muxer.writeSampleData(videoTrack, buffer, info);
+                        lastOutputPts = outputPts;
+                        lastPts = pts;
 
                         extractor.advance();
                     }
 
-                    if (firstPts >= 0) {
-                        long duration = Math.max(0L, extractor.getSampleTime() - firstPts);
-                        if (duration > 0) {
-                            timestampOffsetUs += duration;
-                        } else {
-                            // Fallback for the last sample when the extractor is exhausted.
-                            timestampOffsetUs += 10_000_000L;
-                        }
+                    if (segmentStarted && lastPts >= firstPts) {
+                        // Advance by one frame beyond the final sample so the next
+                        // segment starts strictly after this one.
+                        timestampOffsetUs += (lastPts - firstPts) + frameDurationUs;
                     }
                 } finally {
                     extractor.release();
