@@ -244,14 +244,24 @@ public final class ClipBufferManager {
     private void buildClip(ClipCallback requestedCallback) {
         final List<File> input;
         synchronized (this) {
-            input = new ArrayList<>(segments);
-            stoppingForClip = false;
+            List<File> available = new ArrayList<>(segments);
 
             // The current segment was just added by onVideoSaved.
             int clipSegments = Math.max(1, clipDurationSeconds / 10);
-            int from = Math.max(0, input.size() - clipSegments);
-            if (input.size() > clipSegments) {
-                input.subList(0, from).clear();
+            int from = Math.max(0, available.size() - clipSegments);
+            input = new ArrayList<>(available.subList(from, available.size()));
+
+            // Detach the selected source files from the rolling deque before restarting
+            // recording. This prevents the rolling cleanup from deleting a file while it
+            // is being muxed in the background.
+            for (File segment : input) {
+                segments.remove(segment);
+            }
+            stoppingForClip = false;
+
+            // Resume the rolling buffer immediately. The MP4 join happens off-thread.
+            if (running) {
+                startSegment();
             }
         }
 
@@ -259,11 +269,6 @@ public final class ClipBufferManager {
             if (requestedCallback != null) {
                 mainHandler.post(() ->
                         requestedCallback.onClipFailed("No video has been buffered yet"));
-            }
-            synchronized (this) {
-                if (running) {
-                    startSegment();
-                }
             }
             return;
         }
@@ -274,12 +279,8 @@ public final class ClipBufferManager {
             try {
                 muxSegments(input, output);
 
-                // Remove source segments only after the clip is safely written.
-                synchronized (ClipBufferManager.this) {
-                    for (File segment : input) {
-                        segments.remove(segment);
-                        safeDelete(segment);
-                    }
+                for (File segment : input) {
+                    safeDelete(segment);
                 }
 
                 if (requestedCallback != null) {
@@ -294,6 +295,9 @@ public final class ClipBufferManager {
             } catch (Exception e) {
                 Log.e(TAG, "Unable to create clip", e);
                 safeDelete(output);
+                for (File segment : input) {
+                    safeDelete(segment);
+                }
                 if (requestedCallback != null) {
                     String message = e.getMessage();
                     if (message == null || message.trim().isEmpty()) {
@@ -301,12 +305,6 @@ public final class ClipBufferManager {
                     }
                     final String error = message;
                     mainHandler.post(() -> requestedCallback.onClipFailed(error));
-                }
-            } finally {
-                synchronized (ClipBufferManager.this) {
-                    if (running && !cameraHelper.isRecording()) {
-                        startSegment();
-                    }
                 }
             }
         });
