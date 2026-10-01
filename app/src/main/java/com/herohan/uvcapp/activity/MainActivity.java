@@ -70,6 +70,7 @@ public class MainActivity extends AppCompatActivity {
     private int mPreviewRotation = 0;
 
     private ICameraHelper mCameraHelper;
+    private ClipBufferManager mClipBufferManager;
 
     private UsbDevice mUsbDevice;
     private final ICameraHelper.StateCallback mStateCallback = new MyCameraHelperCallback();
@@ -207,6 +208,25 @@ public class MainActivity extends AppCompatActivity {
                     .request((permissions, all) -> {
                         toggleVideoRecord(!mIsRecording);
                     });
+        });
+
+        mBinding.btnClipNow.setOnClickListener(v -> {
+            if (mClipBufferManager == null) {
+                Toast.makeText(this, "Buffer not ready yet", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            Toast.makeText(this, "Saving clip...", Toast.LENGTH_SHORT).show();
+            mClipBufferManager.clipNow(new ClipBufferManager.ClipCallback() {
+                @Override
+                public void onClipSaved(java.io.File outputFile) {
+                    Toast.makeText(MainActivity.this, "Clip saved: " + outputFile.getName(), Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onClipFailed(String reason) {
+                    Toast.makeText(MainActivity.this, reason, Toast.LENGTH_SHORT).show();
+                }
+            });
         });
     }
 
@@ -429,11 +449,20 @@ public class MainActivity extends AppCompatActivity {
 
             mIsCameraConnected = true;
             updateUIControls();
+
+            if (mClipBufferManager == null) {
+                mClipBufferManager = new ClipBufferManager(MainActivity.this, mCameraHelper);
+            }
+            mClipBufferManager.start();
         }
 
         @Override
         public void onCameraClose(UsbDevice device) {
             if (DEBUG) Log.v(TAG, "onCameraClose:device=" + device.getDeviceName());
+
+            if (mClipBufferManager != null) {
+                mClipBufferManager.stop();
+            }
 
             if (mIsRecording) {
                 toggleVideoRecord(false);
