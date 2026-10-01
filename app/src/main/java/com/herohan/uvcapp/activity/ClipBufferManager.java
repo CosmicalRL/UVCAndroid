@@ -20,6 +20,7 @@ import android.media.MediaCodec;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMuxer;
+import android.media.MediaScannerConnection;
 
 import java.io.File;
 import java.io.IOException;
@@ -282,7 +283,13 @@ public final class ClipBufferManager {
                 }
 
                 if (requestedCallback != null) {
-                    mainHandler.post(() -> requestedCallback.onClipSaved(output));
+                    // Force Gallery/Photos to notice the newly-created file instead of
+                    // waiting for a later background media scan.
+                    MediaScannerConnection.scanFile(
+                            context,
+                            new String[]{output.getAbsolutePath()},
+                            new String[]{"video/mp4"},
+                            (path, uri) -> mainHandler.post(() -> requestedCallback.onClipSaved(output)));
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Unable to create clip", e);
