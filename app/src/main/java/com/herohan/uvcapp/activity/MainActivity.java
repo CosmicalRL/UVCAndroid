@@ -280,9 +280,8 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             int bufferedSeconds = mClipBufferManager.getBufferedSeconds();
-            int targetSeconds = mClipBufferManager.getClipDurationSeconds();
-            if (bufferedSeconds < targetSeconds) {
-                Toast.makeText(this, "Buffering: " + bufferedSeconds + " / " + targetSeconds + "s", Toast.LENGTH_SHORT).show();
+            if (bufferedSeconds <= 0) {
+                Toast.makeText(this, "No footage buffered yet", Toast.LENGTH_SHORT).show();
                 return;
             }
             if (!hasEnoughStorage()) {
@@ -298,7 +297,7 @@ public class MainActivity extends AppCompatActivity {
                     mIsSavingClip = false;
                     mBinding.btnClipNow.setEnabled(hasEnoughStorage()
                         && mClipBufferManager != null
-                        && mClipBufferManager.getBufferedSeconds() >= mClipBufferManager.getClipDurationSeconds());
+                        && mClipBufferManager.getBufferedSeconds() > 0);
                     Toast.makeText(MainActivity.this, "Clip saved: " + outputFile.getName(), Toast.LENGTH_SHORT).show();
                 }
 
@@ -649,15 +648,13 @@ public class MainActivity extends AppCompatActivity {
         int target = mClipBufferManager.getClipDurationSeconds();
         if (buffered < target) {
             mBinding.tvClipStatus.setText("Buffering: " + buffered + " / " + target + "s");
-        } else {
-            mBinding.tvClipStatus.setText("Buffer ready: " + buffered + "s");
         }
 
         if (!hasEnoughStorage()) {
             mBinding.tvClipStatus.setText("Low storage — free space to save clips");
             mBinding.btnClipNow.setEnabled(false);
         } else if (!mIsSavingClip) {
-            mBinding.btnClipNow.setEnabled(buffered >= target);
+            mBinding.btnClipNow.setEnabled(buffered > 0);
         }
     }
 
