@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="#05070B">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Recording" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="Bitrate" android:textColor="#B8B2C9" android:textSize="13sp"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical">
+<SeekBar android:id="@+id/seekSettingsBitrate" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:max="249"/>
+<TextView android:id="@+id/tvSettingsBitrate" android:layout_width="58dp" android:layout_height="wrap_content" android:gravity="end" android:text="6 Mbps" android:textColor="#00E5FF" android:textStyle="bold"/>
+</LinearLayout>
+<View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="18dp" android:background="#2A2340"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="Clip buffer" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:text="Default duration" android:textColor="#B8B2C9" android:textSize="13sp"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+<TextView android:id="@+id/settingsDuration30" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:gravity="center" android:text="30s" android:textColor="#FFFFFF" android:background="@drawable/duration_chip_bg"/>
+<TextView android:id="@+id/settingsDuration60" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginStart="6dp" android:gravity="center" android:text="60s" android:textColor="#FFFFFF" android:background="@drawable/duration_chip_bg"/>
+<TextView android:id="@+id/settingsDuration90" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginStart="6dp" android:gravity="center" android:text="90s" android:textColor="#FFFFFF" android:background="@drawable/duration_chip_bg"/>
+<TextView android:id="@+id/settingsDuration120" android:layout_width="0dp" android:layout_height="42dp" android:layout_weight="1" android:layout_marginStart="6dp" android:gravity="center" android:text="120s" android:textColor="#FFFFFF" android:background="@drawable/duration_chip_bg"/>
+</LinearLayout>
+<TextView android:id="@+id/tvStorageUsed" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="Storage used: calculating…" android:textColor="#B8B2C9" android:textSize="13sp"/>
+<Button android:id="@+id/btnClearBuffer" android:layout_width="match_parent" android:layout_height="48dp" android:layout_marginTop="10dp" android:text="Clear buffer cache" android:textColor="#FF6B6B" android:backgroundTint="#1A1033"/>
+<View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="18dp" android:background="#2A2340"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="18dp" android:text="App" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold"/>
+<TextView android:id="@+id/tvSaveLocation" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="14dp" android:textColor="#B8B2C9" android:textSize="13sp"/>
+<TextView android:id="@+id/tvVersion" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="#B8B2C9" android:textSize="13sp"/>
+</LinearLayout></ScrollView>
