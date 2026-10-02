@@ -302,6 +302,10 @@ public final class ClipBufferManager {
             mainHandler.post(() -> callback.onClipFailed("Clip is already being saved"));
             return;
         }
+        if (manualRecordingRequested || manualRecordingActive) {
+            mainHandler.post(() -> callback.onClipFailed("Stop the current recording before clipping"));
+            return;
+        }
 
         int bufferedSeconds = getBufferedSeconds();
         if (bufferedSeconds <= 0) {
@@ -378,6 +382,10 @@ public final class ClipBufferManager {
                     currentSegmentStartElapsed = 0L;
 
                     if (manualRecordingRequested && pendingManualOutputFile != null) {
+                        // This segment only exists to hand the encoder from the rolling
+                        // buffer to the manual recording. It is not part of the buffer
+                        // and must not be left behind on disk.
+                        safeDelete(saved);
                         File manualFile = pendingManualOutputFile;
                         pendingManualOutputFile = null;
                         ManualRecordCallback callback = pendingManualStartCallback;
