@@ -1,241 +1,155 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#05070B"
+    android:orientation="vertical"
     tools:context="com.herohan.uvcapp.activity.MainActivity">
 
-    <com.serenegiant.widget.AspectRatioTextureView
-        android:id="@+id/viewMainPreview"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone" />
-
-    <TextView
-        android:id="@+id/tvConnectUSBCameraTip"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:paddingStart="24dp"
-        android:paddingEnd="24dp"
-        android:text="Plug in a USB camera device"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:gravity="center" />
-
-    <LinearLayout
-        android:id="@+id/topBar"
-        android:visibility="gone"
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="top"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="14dp"
-        android:paddingTop="14dp"
-        android:paddingEnd="14dp"
-        android:paddingBottom="8dp">
+        android:theme="@style/Theme.Usbvideo.AppBarOverlay">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="?attr/colorPrimary"
+            app:popupTheme="@style/Theme.Usbvideo.PopupOverlay" />
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <com.serenegiant.widget.AspectRatioTextureView
+            android:id="@+id/viewMainPreview"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignWithParentIfMissing="true"
+            android:layout_centerInParent="true"
+            android:visibility="invisible" />
 
         <TextView
-            android:id="@+id/tvConnectionStatus"
-            android:layout_width="0dp"
-            android:layout_height="44dp"
-            android:layout_weight="1"
-            android:background="@drawable/status_pill_bg"
-            android:gravity="center_vertical"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:text="●  Capture Card connected"
-            android:textColor="#00E5FF"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <ImageButton
-            android:id="@+id/btnQuality"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/icon_button_bg"
-            android:contentDescription="Quality"
-            android:padding="8dp"
-            android:src="@drawable/ic_aperture" />
-
-        <ImageButton
-            android:id="@+id/btnSettings"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/icon_button_bg"
-            android:contentDescription="Settings"
-            android:padding="8dp"
-            android:src="@drawable/ic_settings_neon" />
-    </LinearLayout>
-
-    <FrameLayout
-        android:id="@+id/bufferRingContainer"
-        android:visibility="gone"
-        android:layout_width="94dp"
-        android:layout_height="94dp"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="82dp">
-
-        <com.google.android.material.progressindicator.CircularProgressIndicator
-            android:id="@+id/bufferProgress"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:max="100"
-            android:progress="0"
-            app:indicatorColor="#7F5AF0"
-            app:trackColor="#20263A"
-            app:indicatorSize="82dp"
-            app:trackThickness="7dp" />
-
-        <TextView
-            android:id="@+id/tvBufferProgress"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center"
-            android:text="0/30s"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold" />
-    </FrameLayout>
-
-    <TextView
-        android:id="@+id/tvVideoRecordTime"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="178dp"
-        android:drawableStart="@drawable/ic_record_red_dot"
-        android:drawablePadding="5dp"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp"
-        android:visibility="gone"
-        tools:text="00:00:12" />
-
-    <LinearLayout
-        android:id="@+id/bottomControls"
-        android:visibility="gone"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:gravity="center_horizontal"
-        android:orientation="vertical"
-        android:paddingStart="14dp"
-        android:paddingEnd="14dp"
-        android:paddingBottom="22dp">
-
-        <LinearLayout
-            android:id="@+id/durationChips"
+            android:id="@+id/tvConnectUSBCameraTip"
             android:layout_width="wrap_content"
-            android:layout_height="44dp"
-            android:gravity="center"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="@string/main_connect_usb_tip"
+            android:textColor="@color/white"
+            android:textSize="20dp" />
 
-            <TextView
-                android:id="@+id/chip30"
-                android:layout_width="72dp"
-                android:layout_height="44dp"
-                android:background="@drawable/duration_chip_bg"
-                android:gravity="center"
-                android:text="30s"
-                android:textColor="@color/duration_chip_text"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+        <TextView
+            android:id="@+id/tvVideoRecordTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="20dp"
+            android:drawableLeft="@drawable/ic_record_red_dot"
+            android:drawablePadding="5dp"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:visibility="gone"
+            tools:text="99:99:99" />
 
-            <TextView
-                android:id="@+id/chip60"
-                android:layout_width="72dp"
-                android:layout_height="44dp"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/duration_chip_bg"
-                android:gravity="center"
-                android:text="60s"
-                android:textColor="@color/duration_chip_text"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabVideo"
+            style="@style/MainFloatingActionButton"
+            android:layout_above="@id/fabPicture"
+            android:layout_alignParentRight="true"
+            android:layout_marginEnd="@dimen/fab_margin"
+            android:layout_marginBottom="16dp"
+            android:visibility="invisible"
+            app:srcCompat="@drawable/ic_switch_video" />
 
-            <TextView
-                android:id="@+id/chip90"
-                android:layout_width="72dp"
-                android:layout_height="44dp"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/duration_chip_bg"
-                android:gravity="center"
-                android:text="90s"
-                android:textColor="@color/duration_chip_text"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/fabPicture"
+            style="@style/MainFloatingActionButton"
+            android:layout_alignParentRight="true"
+            android:layout_alignParentBottom="true"
+            android:layout_marginEnd="@dimen/fab_margin"
+            android:layout_marginBottom="16dp"
+            android:visibility="invisible"
+            app:srcCompat="@drawable/ic_switch_camera" />
 
-            <TextView
-                android:id="@+id/chip120"
-                android:layout_width="72dp"
-                android:layout_height="44dp"
-                android:layout_marginStart="8dp"
-                android:background="@drawable/duration_chip_bg"
-                android:gravity="center"
-                android:text="120s"
-                android:textColor="@color/duration_chip_text"
-                android:textSize="15sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="132dp"
-            android:layout_marginTop="10dp"
-            android:gravity="center"
-            android:orientation="horizontal">
-
-            <ImageButton
-                android:id="@+id/fabVideo"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:background="@drawable/icon_button_bg"
-                android:contentDescription="Record video"
-                android:padding="15dp"
-                android:src="@drawable/ic_videocam_neon"
-                android:tint="#FFFFFF" />
-
-            <Button
-                android:id="@+id/btnClipNow"
-                android:layout_width="122dp"
-                android:layout_height="122dp"
-                android:layout_marginStart="26dp"
-                android:layout_marginEnd="26dp"
-                android:background="@drawable/clip_now_btn_bg"
-                android:elevation="8dp"
-                android:gravity="center"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:padding="0dp"
-                android:text="CLIP NOW"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <ImageButton
-                android:id="@+id/fabPicture"
-                android:layout_width="64dp"
-                android:layout_height="64dp"
-                android:background="@drawable/icon_button_bg"
-                android:contentDescription="Open gallery"
-                android:padding="15dp"
-                android:src="@drawable/ic_gallery_neon" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/tvClipStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/tvClipBitrate"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="4dp"
+            android:text="Buffering: 0 / 30s"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tvClipBitrate"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_above="@id/seekClipBitrate"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="2dp"
             android:text="6 Mbps"
-            android:textColor="#8B849C"
-            android:textSize="13sp"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <SeekBar
+            android:id="@+id/seekClipBitrate"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/tvClipDuration"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="2dp"
+            android:max="249"
+            android:progress="5"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvClipDuration"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/seekClipDuration"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="2dp"
+            android:text="30s clip"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <SeekBar
+            android:id="@+id/seekClipDuration"
+            android:layout_width="220dp"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/btnClipNow"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="4dp"
+            android:max="3"
+            android:progress="0"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/btnClipNow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="20dp"
+            android:paddingLeft="24dp"
+            android:paddingRight="24dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="@drawable/clip_now_btn_bg"
+            android:text="Clip Now"
+            android:textColor="@color/white"
             android:textStyle="bold" />
-    </LinearLayout>
-</FrameLayout>
+    </RelativeLayout>
+</LinearLayout>
