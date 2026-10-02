@@ -362,40 +362,40 @@ public class MainActivity extends AppCompatActivity {
 
     private void showNeonMenu(String title, String subtitle, String[] items,
                               android.content.DialogInterface.OnClickListener listener) {
+        final AlertDialog[] holder = new AlertDialog[1];
         LinearLayout root = createNeonDialogRoot(title, subtitle);
         for (int i = 0; i < items.length; i++) {
             final int index = i;
             TextView row = createNeonRow(items[i], false);
             row.setOnClickListener(v -> {
-                listener.onClick(null, index);
-                ((AlertDialog) v.getTag()).dismiss();
+                listener.onClick(holder[0], index);
+                if (holder[0] != null) holder[0].dismiss();
             });
             root.addView(row);
         }
-        showNeonDialog(root);
+        holder[0] = new AlertDialog.Builder(this).setView(root).create();
+        holder[0].setOnShowListener(d -> styleNeonDialog(holder[0]));
+        holder[0].show();
+        styleNeonDialog(holder[0]);
     }
 
     private void showNeonChoiceMenu(String title, String subtitle, String[] items, int selected,
                                     android.content.DialogInterface.OnClickListener listener) {
+        final AlertDialog[] holder = new AlertDialog[1];
         LinearLayout root = createNeonDialogRoot(title, subtitle);
-        final AlertDialog[] dialogHolder = new AlertDialog[1];
         for (int i = 0; i < items.length; i++) {
             final int index = i;
             TextView row = createNeonRow(items[i], i == selected);
             row.setOnClickListener(v -> {
-                listener.onClick(dialogHolder[0], index);
-                if (dialogHolder[0] != null) dialogHolder[0].dismiss();
+                listener.onClick(holder[0], index);
+                if (holder[0] != null) holder[0].dismiss();
             });
             root.addView(row);
         }
-        AlertDialog dialog = new AlertDialog.Builder(this).setView(root).create();
-        dialogHolder[0] = dialog;
-        dialog.setOnShowListener(d -> styleNeonDialog(dialog));
-        dialog.show();
-        styleNeonDialog(dialog);
-        for (int i = 0; i < root.getChildCount(); i++) {
-            root.getChildAt(i).setTag(dialog);
-        }
+        holder[0] = new AlertDialog.Builder(this).setView(root).create();
+        holder[0].setOnShowListener(d -> styleNeonDialog(holder[0]));
+        holder[0].show();
+        styleNeonDialog(holder[0]);
     }
 
     private LinearLayout createNeonDialogRoot(String title, String subtitle) {
@@ -455,21 +455,10 @@ public class MainActivity extends AppCompatActivity {
         return bg;
     }
 
-    private void showNeonDialog(LinearLayout root) {
-        final AlertDialog dialog = new AlertDialog.Builder(this).setView(root).create();
-        for (int i = 0; i < root.getChildCount(); i++) {
-            root.getChildAt(i).setTag(dialog);
-        }
-        dialog.setOnShowListener(d -> styleNeonDialog(dialog));
-        dialog.show();
-        styleNeonDialog(dialog);
-    }
-
     private void styleNeonDialog(AlertDialog dialog) {
         Window window = dialog.getWindow();
         if (window == null) return;
         window.setBackgroundDrawableResource(android.R.color.transparent);
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         android.view.WindowManager.LayoutParams lp = window.getAttributes();
         lp.dimAmount = 0.72f;
         lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.88f);
@@ -484,7 +473,6 @@ public class MainActivity extends AppCompatActivity {
         try {
             Intent intent = new Intent(Intent.ACTION_VIEW);
             intent.setType("video/*");
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
         } catch (android.content.ActivityNotFoundException e) {
             Toast.makeText(this, "No video gallery is installed.", Toast.LENGTH_SHORT).show();
@@ -933,3 +921,117 @@ public class MainActivity extends AppCompatActivity {
                 stopRecordTimer();
             }
         } catch (Exception e) {
+            Log.e(TAG, e.getLocalizedMessage(), e);
+            stopRecordTimer();
+        }
+
+        mIsRecording = isRecording;
+
+        updateUIControls();
+    }
+
+    private void setCustomVideoCaptureConfig() {
+        applyVideoCaptureConfig();
+    }
+
+    private void applyVideoCaptureConfig() {
+        if (mCameraHelper == null) {
+            return;
+        }
+        mCameraHelper.setVideoCaptureConfig(
+                mCameraHelper.getVideoCaptureConfig()
+                        .setAudioCaptureEnable(false)
+                        .setBitRate(mVideoBitrateMbps * 1024 * 1024)
+                        .setVideoFrameRate(25)
+                        .setIFrameInterval(1));
+    }
+
+    private void startRecord() {
+        File file = new File(SaveHelper.getSaveVideoPath());
+        VideoCapture.OutputFileOptions options =
+                new VideoCapture.OutputFileOptions.Builder(file).build();
+        mCameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
+            @Override
+            public void onStart() {
+                startRecordTimer();
+            }
+
+            @Override
+            public void onVideoSaved(@NonNull VideoCapture.OutputFileResults outputFileResults) {
+                toggleVideoRecord(false);
+
+                Toast.makeText(
+                        MainActivity.this,
+                        "save \"" + UriHelper.getPath(MainActivity.this, outputFileResults.getSavedUri()) + "\"",
+                        Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onError(int videoCaptureError, @NonNull String message, @Nullable Throwable cause) {
+                toggleVideoRecord(false);
+
+                Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void stopRecord() {
+        mCameraHelper.stopRecording();
+    }
+
+    private void startRecordTimer() {
+        runOnUiThread(() -> mBinding.tvVideoRecordTime.setVisibility(View.VISIBLE));
+
+        // Set “00:00:00” to record time TextView
+        setVideoRecordTimeText(formatTime(0));
+
+        // Start Record Timer
+        mRecordStartTime = SystemClock.elapsedRealtime();
+        mRecordTimer = new Timer();
+        //The timer is refreshed every quarter second
+        mRecordTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                long recordTime = (SystemClock.elapsedRealtime() - mRecordStartTime) / 1000;
+                if (recordTime > 0) {
+                    setVideoRecordTimeText(formatTime(recordTime));
+                }
+            }
+        }, QUARTER_SECOND, QUARTER_SECOND);
+    }
+
+    private void stopRecordTimer() {
+        runOnUiThread(() -> mBinding.tvVideoRecordTime.setVisibility(View.GONE));
+
+        // Stop Record Timer
+        mRecordStartTime = 0;
+        if (mRecordTimer != null) {
+            mRecordTimer.cancel();
+            mRecordTimer = null;
+        }
+        // Set “00:00:00” to record time TextView
+        setVideoRecordTimeText(formatTime(0));
+    }
+
+    private void setVideoRecordTimeText(String timeText) {
+        runOnUiThread(() -> {
+            mBinding.tvVideoRecordTime.setText(timeText);
+        });
+    }
+
+    /**
+     * 将秒转化为 HH:mm:ss 的格式
+     *
+     * @param time 秒
+     * @return
+     */
+    private String formatTime(long time) {
+        if (mDecimalFormat == null) {
+            mDecimalFormat = new DecimalFormat("00");
+        }
+        String hh = mDecimalFormat.format(time / 3600);
+        String mm = mDecimalFormat.format(time % 3600 / 60);
+        String ss = mDecimalFormat.format(time % 60);
+        return hh + ":" + mm + ":" + ss;
+    }
+}
