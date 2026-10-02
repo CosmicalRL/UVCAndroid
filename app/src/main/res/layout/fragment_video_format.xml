@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="#05070B">
 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Quality" android:textColor="#FFFFFF" android:textSize="20sp" android:textStyle="bold"/>
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Format" android:textColor="#B8B2C9" android:textSize="13sp"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Quality and format" android:textColor="#FFFFFF" android:textSize="20sp" android:textStyle="bold"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="FORMAT" android:textColor="#B8B2C9" android:textSize="13sp"/>
 <LinearLayout android:layout_width="match_parent" android:layout_height="44dp" android:orientation="horizontal">
 <Button android:id="@+id/btnFormatMjpeg" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="MJPEG" android:textColor="#FFFFFF" android:backgroundTint="#1A1033"/>
 <Button android:id="@+id/btnFormatYuyv" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="8dp" android:text="YUYV" android:textColor="#FFFFFF" android:backgroundTint="#1A1033"/>
 </LinearLayout>
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Resolution" android:textColor="#B8B2C9" android:textSize="13sp"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="RESOLUTION" android:textColor="#B8B2C9" android:textSize="13sp"/>
 <LinearLayout android:id="@+id/rowResolution" android:layout_width="match_parent" android:layout_height="52dp" android:gravity="center_vertical" android:orientation="horizontal" android:background="#1A1033" android:paddingStart="14dp" android:paddingEnd="14dp">
 <TextView android:id="@+id/tvResolutionValue" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textColor="#FFFFFF" android:textSize="15sp"/>
 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⌄" android:textColor="#00E5FF" android:textSize="20sp"/>
 </LinearLayout>
 <LinearLayout android:id="@+id/resolutionOptions" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone"/>
-<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="Frame rate" android:textColor="#B8B2C9" android:textSize="13sp"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:text="FRAME RATE" android:textColor="#B8B2C9" android:textSize="13sp"/>
 <LinearLayout android:id="@+id/rowFrameRate" android:layout_width="match_parent" android:layout_height="52dp" android:gravity="center_vertical" android:orientation="horizontal" android:background="#1A1033" android:paddingStart="14dp" android:paddingEnd="14dp">
 <TextView android:id="@+id/tvFrameRateValue" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textColor="#FFFFFF" android:textSize="15sp"/>
 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⌄" android:textColor="#00E5FF" android:textSize="20sp"/>
