@@ -552,7 +552,7 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 mBinding.viewMainPreview.setVisibility(View.GONE);
                 mBinding.tvConnectUSBCameraTip.setVisibility(View.VISIBLE);
-                mBinding.topControls.setVisibility(View.VISIBLE);
+                mBinding.topControls.setVisibility(View.GONE);
                 mBinding.bottomControls.setVisibility(View.GONE);
                 mBinding.bufferProgress.setVisibility(View.GONE);
                 mBinding.tvClipBitrate.setVisibility(View.GONE);
