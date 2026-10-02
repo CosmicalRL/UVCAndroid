@@ -308,6 +308,7 @@ public class MainActivity extends AppCompatActivity {
                 if (mClipBufferManager != null) {
                     mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
                 }
+                applyVideoCaptureConfig();
             }
             @Override public void onStartTrackingTouch(SeekBar seekBar) {}
             @Override public void onStopTrackingTouch(SeekBar seekBar) {}
