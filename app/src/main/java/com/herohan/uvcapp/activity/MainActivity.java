@@ -39,7 +39,13 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.TextureView;
 import android.view.View;
+import android.view.Gravity;
+import android.view.Window;
 import android.app.AlertDialog;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.SeekBar;
 
@@ -328,32 +334,161 @@ public class MainActivity extends AppCompatActivity {
 
     private void showSettingsMenu() {
         final String[] items = {"Quality & Format", "Bitrate", "Resolution", "Gallery"};
-        new AlertDialog.Builder(this)
-                .setTitle("Capture Clipper")
-                .setItems(items, (dialog, which) -> {
-                    if (which == 0) showVideoFormatDialog();
-                    else if (which == 1) showBitrateMenu();
-                    else if (which == 2) showVideoFormatDialog();
-                    else Toast.makeText(this, "Gallery is available from the saved clips in your device gallery.", Toast.LENGTH_LONG).show();
-                })
-                .setNegativeButton("Close", null)
-                .show();
+        showNeonMenu("SETTINGS", "CAPTURE CLIPPER", items, which -> {
+            if (which == 0) {
+                showVideoFormatDialog();
+            } else if (which == 1) {
+                showBitrateMenu();
+            } else if (which == 2) {
+                showVideoFormatDialog();
+            } else {
+                openGallery();
+            }
+        });
     }
 
     private void showBitrateMenu() {
         final String[] values = {"1 Mbps", "6 Mbps", "12 Mbps", "25 Mbps", "50 Mbps", "100 Mbps", "150 Mbps", "250 Mbps"};
-        new AlertDialog.Builder(this)
-                .setTitle("Bitrate")
-                .setSingleChoiceItems(values, bitrateChoiceIndex(), (dialog, which) -> {
-                    int[] mbps = {1, 6, 12, 25, 50, 100, 150, 250};
-                    mVideoBitrateMbps = mbps[which];
-                    mBinding.seekClipBitrate.setProgress(mVideoBitrateMbps - MIN_BITRATE_MBPS);
-                    if (mClipBufferManager != null) mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
-                    applyVideoCaptureConfig();
-                    dialog.dismiss();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
+        showNeonChoiceMenu("BITRATE", "ROLLING BUFFER ENCODER", values, bitrateChoiceIndex(), which -> {
+            int[] mbps = {1, 6, 12, 25, 50, 100, 150, 250};
+            mVideoBitrateMbps = mbps[which];
+            mBinding.seekClipBitrate.setProgress(mVideoBitrateMbps - MIN_BITRATE_MBPS);
+            if (mClipBufferManager != null) {
+                mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
+            }
+            applyVideoCaptureConfig();
+        });
+    }
+
+    private void showNeonMenu(String title, String subtitle, String[] items,
+                              android.content.DialogInterface.OnClickListener listener) {
+        LinearLayout root = createNeonDialogRoot(title, subtitle);
+        for (int i = 0; i < items.length; i++) {
+            final int index = i;
+            TextView row = createNeonRow(items[i], false);
+            row.setOnClickListener(v -> {
+                listener.onClick(null, index);
+                ((AlertDialog) v.getTag()).dismiss();
+            });
+            root.addView(row);
+        }
+        showNeonDialog(root);
+    }
+
+    private void showNeonChoiceMenu(String title, String subtitle, String[] items, int selected,
+                                    android.content.DialogInterface.OnClickListener listener) {
+        LinearLayout root = createNeonDialogRoot(title, subtitle);
+        final AlertDialog[] dialogHolder = new AlertDialog[1];
+        for (int i = 0; i < items.length; i++) {
+            final int index = i;
+            TextView row = createNeonRow(items[i], i == selected);
+            row.setOnClickListener(v -> {
+                listener.onClick(dialogHolder[0], index);
+                if (dialogHolder[0] != null) dialogHolder[0].dismiss();
+            });
+            root.addView(row);
+        }
+        AlertDialog dialog = new AlertDialog.Builder(this).setView(root).create();
+        dialogHolder[0] = dialog;
+        dialog.setOnShowListener(d -> styleNeonDialog(dialog));
+        dialog.show();
+        styleNeonDialog(dialog);
+        for (int i = 0; i < root.getChildCount(); i++) {
+            root.getChildAt(i).setTag(dialog);
+        }
+    }
+
+    private LinearLayout createNeonDialogRoot(String title, String subtitle) {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(22), dp(20), dp(22), dp(18));
+        root.setBackground(neonPanelBackground());
+
+        TextView heading = new TextView(this);
+        heading.setText(title);
+        heading.setTextColor(Color.WHITE);
+        heading.setTextSize(20);
+        heading.setTypeface(null, android.graphics.Typeface.BOLD);
+        heading.setLetterSpacing(0.08f);
+        root.addView(heading, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView sub = new TextView(this);
+        sub.setText(subtitle);
+        sub.setTextColor(Color.rgb(0, 229, 255));
+        sub.setTextSize(10);
+        sub.setLetterSpacing(0.12f);
+        LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(-1, -2);
+        subParams.topMargin = dp(4);
+        subParams.bottomMargin = dp(12);
+        root.addView(sub, subParams);
+        return root;
+    }
+
+    private TextView createNeonRow(String text, boolean selected) {
+        TextView row = new TextView(this);
+        row.setText(text);
+        row.setTextColor(Color.WHITE);
+        row.setTextSize(15);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), 0, dp(16), 0);
+        row.setMinHeight(dp(52));
+        row.setBackground(neonRowBackground(selected));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(52));
+        params.bottomMargin = dp(7);
+        row.setLayoutParams(params);
+        return row;
+    }
+
+    private GradientDrawable neonPanelBackground() {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.rgb(8, 10, 20));
+        bg.setCornerRadius(dp(24));
+        bg.setStroke(dp(1), Color.rgb(92, 59, 181));
+        return bg;
+    }
+
+    private GradientDrawable neonRowBackground(boolean selected) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(selected ? Color.rgb(35, 24, 68) : Color.rgb(16, 18, 30));
+        bg.setCornerRadius(dp(14));
+        bg.setStroke(dp(selected ? 2 : 1), selected ? Color.rgb(0, 229, 255) : Color.rgb(54, 42, 91));
+        return bg;
+    }
+
+    private void showNeonDialog(LinearLayout root) {
+        final AlertDialog dialog = new AlertDialog.Builder(this).setView(root).create();
+        for (int i = 0; i < root.getChildCount(); i++) {
+            root.getChildAt(i).setTag(dialog);
+        }
+        dialog.setOnShowListener(d -> styleNeonDialog(dialog));
+        dialog.show();
+        styleNeonDialog(dialog);
+    }
+
+    private void styleNeonDialog(AlertDialog dialog) {
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        window.setBackgroundDrawableResource(android.R.color.transparent);
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        android.view.WindowManager.LayoutParams lp = window.getAttributes();
+        lp.dimAmount = 0.72f;
+        lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.88f);
+        window.setAttributes(lp);
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void openGallery() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setType("video/*");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (android.content.ActivityNotFoundException e) {
+            Toast.makeText(this, "No video gallery is installed.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private int bitrateChoiceIndex() {
@@ -798,117 +933,3 @@ public class MainActivity extends AppCompatActivity {
                 stopRecordTimer();
             }
         } catch (Exception e) {
-            Log.e(TAG, e.getLocalizedMessage(), e);
-            stopRecordTimer();
-        }
-
-        mIsRecording = isRecording;
-
-        updateUIControls();
-    }
-
-    private void setCustomVideoCaptureConfig() {
-        applyVideoCaptureConfig();
-    }
-
-    private void applyVideoCaptureConfig() {
-        if (mCameraHelper == null) {
-            return;
-        }
-        mCameraHelper.setVideoCaptureConfig(
-                mCameraHelper.getVideoCaptureConfig()
-                        .setAudioCaptureEnable(false)
-                        .setBitRate(mVideoBitrateMbps * 1024 * 1024)
-                        .setVideoFrameRate(25)
-                        .setIFrameInterval(1));
-    }
-
-    private void startRecord() {
-        File file = new File(SaveHelper.getSaveVideoPath());
-        VideoCapture.OutputFileOptions options =
-                new VideoCapture.OutputFileOptions.Builder(file).build();
-        mCameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
-            @Override
-            public void onStart() {
-                startRecordTimer();
-            }
-
-            @Override
-            public void onVideoSaved(@NonNull VideoCapture.OutputFileResults outputFileResults) {
-                toggleVideoRecord(false);
-
-                Toast.makeText(
-                        MainActivity.this,
-                        "save \"" + UriHelper.getPath(MainActivity.this, outputFileResults.getSavedUri()) + "\"",
-                        Toast.LENGTH_SHORT).show();
-            }
-
-            @Override
-            public void onError(int videoCaptureError, @NonNull String message, @Nullable Throwable cause) {
-                toggleVideoRecord(false);
-
-                Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
-            }
-        });
-    }
-
-    private void stopRecord() {
-        mCameraHelper.stopRecording();
-    }
-
-    private void startRecordTimer() {
-        runOnUiThread(() -> mBinding.tvVideoRecordTime.setVisibility(View.VISIBLE));
-
-        // Set “00:00:00” to record time TextView
-        setVideoRecordTimeText(formatTime(0));
-
-        // Start Record Timer
-        mRecordStartTime = SystemClock.elapsedRealtime();
-        mRecordTimer = new Timer();
-        //The timer is refreshed every quarter second
-        mRecordTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                long recordTime = (SystemClock.elapsedRealtime() - mRecordStartTime) / 1000;
-                if (recordTime > 0) {
-                    setVideoRecordTimeText(formatTime(recordTime));
-                }
-            }
-        }, QUARTER_SECOND, QUARTER_SECOND);
-    }
-
-    private void stopRecordTimer() {
-        runOnUiThread(() -> mBinding.tvVideoRecordTime.setVisibility(View.GONE));
-
-        // Stop Record Timer
-        mRecordStartTime = 0;
-        if (mRecordTimer != null) {
-            mRecordTimer.cancel();
-            mRecordTimer = null;
-        }
-        // Set “00:00:00” to record time TextView
-        setVideoRecordTimeText(formatTime(0));
-    }
-
-    private void setVideoRecordTimeText(String timeText) {
-        runOnUiThread(() -> {
-            mBinding.tvVideoRecordTime.setText(timeText);
-        });
-    }
-
-    /**
-     * 将秒转化为 HH:mm:ss 的格式
-     *
-     * @param time 秒
-     * @return
-     */
-    private String formatTime(long time) {
-        if (mDecimalFormat == null) {
-            mDecimalFormat = new DecimalFormat("00");
-        }
-        String hh = mDecimalFormat.format(time / 3600);
-        String mm = mDecimalFormat.format(time % 3600 / 60);
-        String ss = mDecimalFormat.format(time % 60);
-        return hh + ":" + mm + ":" + ss;
-    }
-}
