@@ -7,6 +7,8 @@ import android.graphics.SurfaceTexture;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.StatFs;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -87,6 +89,15 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean mIsRecording = false;
     private boolean mIsCameraConnected = false;
+    private boolean mIsSavingClip = false;
+
+    private final Handler mUiHandler = new Handler();
+    private final Runnable mClipStatusUpdater = new Runnable() {
+        @Override public void run() {
+            updateClipStatus();
+            if (mIsCameraConnected) mUiHandler.postDelayed(this, HALF_SECOND);
+        }
+    };
 
     private CameraControlsDialogFragment mControlsDialog;
     private DeviceListDialogFragment mDeviceListDialog;
@@ -135,6 +146,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        mUiHandler.removeCallbacks(mClipStatusUpdater);
         if (mClipBufferManager != null) {
             mClipBufferManager.stop();
         }
@@ -267,18 +279,25 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Buffer not ready yet", Toast.LENGTH_SHORT).show();
                 return;
             }
+            if (!hasEnoughStorage()) {
+                Toast.makeText(this, "Not enough storage for a clip", Toast.LENGTH_LONG).show();
+                return;
+            }
+            mIsSavingClip = true;
             mBinding.btnClipNow.setEnabled(false);
             Toast.makeText(this, "Saving clip...", Toast.LENGTH_SHORT).show();
             mClipBufferManager.clipNow(new ClipBufferManager.ClipCallback() {
                 @Override
                 public void onClipSaved(java.io.File outputFile) {
-                    mBinding.btnClipNow.setEnabled(true);
+                    mIsSavingClip = false;
+                    mBinding.btnClipNow.setEnabled(hasEnoughStorage());
                     Toast.makeText(MainActivity.this, "Clip saved: " + outputFile.getName(), Toast.LENGTH_SHORT).show();
                 }
 
                 @Override
                 public void onClipFailed(String reason) {
-                    mBinding.btnClipNow.setEnabled(true);
+                    mIsSavingClip = false;
+                    mBinding.btnClipNow.setEnabled(hasEnoughStorage());
                     Toast.makeText(MainActivity.this, reason, Toast.LENGTH_SHORT).show();
                 }
             });
@@ -513,6 +532,8 @@ public class MainActivity extends AppCompatActivity {
             mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
             applyVideoCaptureConfig();
             mClipBufferManager.start();
+            mUiHandler.removeCallbacks(mClipStatusUpdater);
+            mUiHandler.post(mClipStatusUpdater);
         }
 
         @Override
@@ -532,6 +553,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
             mIsCameraConnected = false;
+            mUiHandler.removeCallbacks(mClipStatusUpdater);
             updateUIControls();
 
             closeAllDialogFragment();
@@ -581,8 +603,9 @@ public class MainActivity extends AppCompatActivity {
                 mBinding.seekClipDuration.setVisibility(View.VISIBLE);
                 mBinding.tvClipBitrate.setVisibility(View.VISIBLE);
                 mBinding.seekClipBitrate.setVisibility(View.VISIBLE);
+                mBinding.tvClipStatus.setVisibility(View.VISIBLE);
                 mBinding.btnClipNow.setVisibility(View.VISIBLE);
-                mBinding.btnClipNow.setEnabled(true);
+                mBinding.btnClipNow.setEnabled(hasEnoughStorage());
 
                 // Update record button
                 int colorId = R.color.WHITE;
@@ -602,12 +625,42 @@ public class MainActivity extends AppCompatActivity {
                 mBinding.seekClipDuration.setVisibility(View.GONE);
                 mBinding.tvClipBitrate.setVisibility(View.GONE);
                 mBinding.seekClipBitrate.setVisibility(View.GONE);
+                mBinding.tvClipStatus.setVisibility(View.GONE);
                 mBinding.btnClipNow.setVisibility(View.GONE);
 
                 mBinding.tvVideoRecordTime.setVisibility(View.GONE);
             }
             invalidateOptionsMenu();
         });
+    }
+
+    private void updateClipStatus() {
+        if (mBinding == null || !mIsCameraConnected || mClipBufferManager == null) return;
+
+        int buffered = mClipBufferManager.getBufferedSeconds();
+        int target = mClipBufferManager.getClipDurationSeconds();
+        if (buffered < target) {
+            mBinding.tvClipStatus.setText("Buffering: " + buffered + " / " + target + "s");
+        } else {
+            mBinding.tvClipStatus.setText("Buffer ready: " + buffered + "s");
+        }
+
+        if (!hasEnoughStorage()) {
+            mBinding.tvClipStatus.setText("Low storage — free space to save clips");
+            mBinding.btnClipNow.setEnabled(false);
+        } else if (!mIsSavingClip && !mBinding.btnClipNow.isEnabled()) {
+            mBinding.btnClipNow.setEnabled(true);
+        }
+    }
+
+    private boolean hasEnoughStorage() {
+        try {
+            StatFs statFs = new StatFs(getFilesDir().getAbsolutePath());
+            return statFs.getAvailableBytes() >= 512L * 1024L * 1024L;
+        } catch (Exception e) {
+            Log.w(TAG, "Unable to check available storage", e);
+            return true;
+        }
     }
 
     private Size getSavedPreviewSize() {
