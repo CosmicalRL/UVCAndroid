@@ -2,6 +2,8 @@ package com.herohan.uvcapp.activity;
 
 import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.content.res.ColorStateList;
 import android.graphics.SurfaceTexture;
 import android.hardware.usb.UsbDevice;
@@ -47,6 +49,12 @@ import java.io.File;
 import java.text.DecimalFormat;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -58,6 +66,10 @@ public class MainActivity extends AppCompatActivity {
     private static final int QUARTER_SECOND = 250;
     private static final int HALF_SECOND = 500;
     private static final int ONE_SECOND = 1000;
+    private static final int PERMISSION_REQUEST_CODE = 9001;
+    private static final String CURRENT_VERSION = "1.0.2";
+    private static final String RELEASES_API_URL = "https://api.github.com/repos/CosmicalRL/UVCAndroid/releases/latest";
+    private static final String PREF_SKIPPED_VERSION = "skipped_update_version";
 
     private static final int DEFAULT_WIDTH = 640;
     private static final int DEFAULT_HEIGHT = 480;
@@ -116,6 +128,8 @@ public class MainActivity extends AppCompatActivity {
         checkCameraHelper();
 
         setListeners();
+        requestLaunchPermissions();
+        checkForUpdate();
     }
 
     @Override
@@ -214,22 +228,131 @@ public class MainActivity extends AppCompatActivity {
         return super.onPrepareOptionsMenu(menu);
     }
 
+    private boolean hasRequiredPermissions() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                    && checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED
+                    && checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED;
+        }
+        return checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                && checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestLaunchPermissions() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(new String[]{
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_IMAGES
+            }, PERMISSION_REQUEST_CODE);
+        } else {
+            requestPermissions(new String[]{
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+            }, PERMISSION_REQUEST_CODE);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            updateUIControls();
+            if (!hasRequiredPermissions()) {
+                Toast.makeText(this,
+                        "Camera and media access are required for Capture Clipper.",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    private void checkForUpdate() {
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                connection = (HttpURLConnection) new URL(RELEASES_API_URL).openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                connection.setRequestProperty("Accept", "application/vnd.github+json");
+                if (connection.getResponseCode() != HttpURLConnection.HTTP_OK) return;
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                StringBuilder body = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) body.append(line);
+                reader.close();
+
+                String json = body.toString();
+                Matcher tagMatcher = Pattern.compile("\"tag_name\"\\s*:\\s*\"([^\"]+)\"").matcher(json);
+                Matcher bodyMatcher = Pattern.compile("\"body\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"").matcher(json);
+                Matcher urlMatcher = Pattern.compile("\"html_url\"\\s*:\\s*\"([^\"]+)\"").matcher(json);
+                if (!tagMatcher.find()) return;
+
+                String latest = tagMatcher.group(1).replaceFirst("^[vV]", "");
+                if (!isNewerVersion(latest, CURRENT_VERSION)) return;
+
+                String notes = bodyMatcher.find() ? bodyMatcher.group(1)
+                        .replace("\\r", "").replace("\\n", "\n").replace("\\"", """) : "Bug fixes and improvements.";
+                String releaseUrl = urlMatcher.find() ? urlMatcher.group(1) : "https://github.com/CosmicalRL/UVCAndroid/releases";
+
+                if (latest.equals(getPreferences(MODE_PRIVATE).getString(PREF_SKIPPED_VERSION, ""))) return;
+
+                runOnUiThread(() -> showUpdateDialog(latest, notes, releaseUrl));
+            } catch (Exception e) {
+                Log.d(TAG, "Update check skipped: " + e.getMessage());
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        }).start();
+    }
+
+    private boolean isNewerVersion(String latest, String current) {
+        try {
+            String[] a = latest.split("\\.");
+            String[] b = current.split("\\.");
+            int length = Math.max(a.length, b.length);
+            for (int i = 0; i < length; i++) {
+                int av = i < a.length ? Integer.parseInt(a[i].replaceAll("\\D.*", "")) : 0;
+                int bv = i < b.length ? Integer.parseInt(b[i].replaceAll("\\D.*", "")) : 0;
+                if (av != bv) return av > bv;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    private void showUpdateDialog(String version, String notes, String releaseUrl) {
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Capture Clipper update")
+                .setMessage("New version: v" + version + "\n\nFeatures & changes:\n" + notes)
+                .setPositiveButton("Update Now", (dialog, which) -> {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(releaseUrl)));
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Could not open update page", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Skip", (dialog, which) ->
+                        getPreferences(MODE_PRIVATE).edit().putString(PREF_SKIPPED_VERSION, version).apply())
+                .setCancelable(true)
+                .show();
+    }
+
     private void setListeners() {
         mBinding.fabPicture.setOnClickListener(v -> {
-            XXPermissions.with(this)
-                    .permission(Manifest.permission.MANAGE_EXTERNAL_STORAGE)
-                    .request((permissions, all) -> {
-                        takePicture();
-                    });
+            if (hasRequiredPermissions()) {
+                takePicture();
+            } else {
+                requestLaunchPermissions();
+            }
         });
 
         mBinding.fabVideo.setOnClickListener(v -> {
-            XXPermissions.with(this)
-                    .permission(Manifest.permission.MANAGE_EXTERNAL_STORAGE)
-                    .permission(Manifest.permission.RECORD_AUDIO)
-                    .request((permissions, all) -> {
-                        toggleVideoRecord(!mIsRecording);
-                    });
+            if (hasRequiredPermissions()) {
+                toggleVideoRecord(!mIsRecording);
+            } else {
+                requestLaunchPermissions();
+            }
         });
 
         mBinding.seekClipDuration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
