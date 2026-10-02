@@ -43,6 +43,9 @@ import android.view.TextureView;
 import android.view.View;
 import android.widget.Toast;
 import android.widget.SeekBar;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.view.Gravity;
 
 import java.io.File;
 import java.text.DecimalFormat;
@@ -290,7 +293,7 @@ public class MainActivity extends AppCompatActivity {
         bitrateValue.setText(mVideoBitrateMbps + " Mbps");
         bitrateValue.setTextColor(Color.WHITE);
         bitrateValue.setTextSize(18);
-        bitrateValue.setGravity(View.TEXT_ALIGNMENT_CENTER);
+        bitrateValue.setGravity(Gravity.CENTER_HORIZONTAL);
         root.addView(bitrateValue);
 
         SeekBar bitrateSeek = new SeekBar(this);
