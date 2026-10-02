@@ -28,6 +28,7 @@ import com.serenegiant.usb.IButtonCallback;
 import com.serenegiant.usb.Size;
 import com.serenegiant.usb.USBMonitor;
 import com.serenegiant.utils.UriHelper;
+import com.herohan.uvcapp.BuildConfig;
 import com.herohan.uvcapp.R;
 import com.herohan.uvcapp.databinding.ActivityMainBinding;
 import com.herohan.uvcapp.fragment.CameraControlsDialogFragment;
