@@ -391,7 +391,7 @@ public class MainActivity extends AppCompatActivity {
             final int index = i;
             TextView row = createNeonRow(items[i], i == selected);
             row.setOnClickListener(v -> {
-                listener.onClick(holder[0], index);
+                listener.onClick(index);
                 if (holder[0] != null) holder[0].dismiss();
             });
             root.addView(row);
