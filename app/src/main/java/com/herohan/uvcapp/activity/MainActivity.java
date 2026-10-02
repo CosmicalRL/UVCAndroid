@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int HALF_SECOND = 500;
     private static final int ONE_SECOND = 1000;
     private static final int PERMISSION_REQUEST_CODE = 9001;
-    private static final String CURRENT_VERSION = "1.0.2";
+    private static final String CURRENT_VERSION = BuildConfig.VERSION_NAME;
     private static final String RELEASES_API_URL = "https://api.github.com/repos/CosmicalRL/UVCAndroid/releases/latest";
     private static final String PREF_SKIPPED_VERSION = "skipped_update_version";
 
@@ -772,6 +772,8 @@ public class MainActivity extends AppCompatActivity {
         int target = mClipBufferManager.getClipDurationSeconds();
         if (buffered < target) {
             mBinding.tvClipStatus.setText("Buffering: " + buffered + " / " + target + "s");
+        } else {
+            mBinding.tvClipStatus.setText("Ready: " + buffered + "s buffered");
         }
 
         if (!hasEnoughStorage()) {
