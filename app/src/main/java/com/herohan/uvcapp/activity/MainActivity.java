@@ -2,7 +2,6 @@ package com.herohan.uvcapp.activity;
 
 import android.Manifest;
 import android.content.Intent;
-import android.content.res.ColorStateList;
 import android.graphics.SurfaceTexture;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
@@ -30,17 +29,16 @@ import com.herohan.uvcapp.databinding.ActivityMainBinding;
 import com.herohan.uvcapp.fragment.CameraControlsDialogFragment;
 import com.herohan.uvcapp.fragment.DeviceListDialogFragment;
 import com.herohan.uvcapp.fragment.VideoFormatDialogFragment;
+import com.herohan.uvcapp.fragment.SettingsDialogFragment;
 import com.herohan.uvcapp.utils.SaveHelper;
 
 import android.os.SystemClock;
+import android.animation.ObjectAnimator;
 import android.text.TextUtils;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.Toast;
-import android.widget.SeekBar;
 
 import java.io.File;
 import java.text.DecimalFormat;
@@ -79,6 +77,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int MIN_BITRATE_MBPS = 1;
     private static final int MAX_BITRATE_MBPS = 250;
     private int mVideoBitrateMbps = 6;
+    private int mSelectedClipDurationSeconds = 30;
+    private ObjectAnimator mConnectionPulse;
 
     private UsbDevice mUsbDevice;
     private final ICameraHelper.StateCallback mStateCallback = new MyCameraHelperCallback();
@@ -109,8 +109,6 @@ public class MainActivity extends AppCompatActivity {
 
         mBinding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(mBinding.getRoot());
-
-        setSupportActionBar(mBinding.toolbar);
 
         checkCameraHelper();
 
@@ -154,125 +152,24 @@ public class MainActivity extends AppCompatActivity {
         clearCameraHelper();
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
-        int id = item.getItemId();
-
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_control) {
-            showCameraControlsDialog();
-        } else if (id == R.id.action_device) {
-            showDeviceListDialog();
-        } else if (id == R.id.action_safely_eject) {
-            safelyEject();
-        } else if (id == R.id.action_settings) {
-        } else if (id == R.id.action_video_format) {
-            showVideoFormatDialog();
-        } else if (id == R.id.action_rotate_90_CW) {
-            rotateBy(90);
-        } else if (id == R.id.action_rotate_90_CCW) {
-            rotateBy(-90);
-        } else if (id == R.id.action_flip_horizontally) {
-            flipHorizontally();
-        } else if (id == R.id.action_flip_vertically) {
-            flipVertically();
-        }
-
-        return true;
-    }
-
-    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
-        if (mIsCameraConnected) {
-            menu.findItem(R.id.action_control).setVisible(true);
-            menu.findItem(R.id.action_safely_eject).setVisible(true);
-            menu.findItem(R.id.action_video_format).setVisible(true);
-            menu.findItem(R.id.action_rotate_90_CW).setVisible(true);
-            menu.findItem(R.id.action_rotate_90_CCW).setVisible(true);
-            menu.findItem(R.id.action_flip_horizontally).setVisible(true);
-            menu.findItem(R.id.action_flip_vertically).setVisible(true);
-        } else {
-            menu.findItem(R.id.action_control).setVisible(false);
-            menu.findItem(R.id.action_safely_eject).setVisible(false);
-            menu.findItem(R.id.action_video_format).setVisible(false);
-            menu.findItem(R.id.action_rotate_90_CW).setVisible(false);
-            menu.findItem(R.id.action_rotate_90_CCW).setVisible(false);
-            menu.findItem(R.id.action_flip_horizontally).setVisible(false);
-            menu.findItem(R.id.action_flip_vertically).setVisible(false);
-        }
-        return super.onPrepareOptionsMenu(menu);
-    }
-
     private void setListeners() {
-        mBinding.fabPicture.setOnClickListener(v -> {
-            XXPermissions.with(this)
-                    .permission(Manifest.permission.MANAGE_EXTERNAL_STORAGE)
-                    .request((permissions, all) -> {
-                        takePicture();
-                    });
-        });
-
-        mBinding.fabVideo.setOnClickListener(v -> {
+        mBinding.btnManualRecord.setOnClickListener(v -> {
             XXPermissions.with(this)
                     .permission(Manifest.permission.MANAGE_EXTERNAL_STORAGE)
                     .permission(Manifest.permission.RECORD_AUDIO)
-                    .request((permissions, all) -> {
-                        toggleVideoRecord(!mIsRecording);
-                    });
+                    .request((permissions, all) -> toggleVideoRecord(!mIsRecording));
         });
 
-        mBinding.seekClipDuration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                int seconds = CLIP_DURATIONS_SECONDS[Math.max(0, Math.min(progress, CLIP_DURATIONS_SECONDS.length - 1))];
-                mBinding.tvClipDuration.setText(seconds + "s clip");
-                if (mClipBufferManager != null) {
-                    mClipBufferManager.setClipDurationSeconds(seconds);
-                }
-            }
+        mBinding.chipDuration30.setOnClickListener(v -> setClipDuration(30));
+        mBinding.chipDuration60.setOnClickListener(v -> setClipDuration(60));
+        mBinding.chipDuration90.setOnClickListener(v -> setClipDuration(90));
+        mBinding.chipDuration120.setOnClickListener(v -> setClipDuration(120));
+        updateDurationChips();
 
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
+        mBinding.btnQuality.setOnClickListener(v -> showVideoFormatDialog());
+        mBinding.btnSettings.setOnClickListener(v -> showSettingsDialog());
 
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-        mBinding.seekClipDuration.setProgress(0);
-
-        mBinding.seekClipBitrate.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                mVideoBitrateMbps = Math.max(MIN_BITRATE_MBPS,
-                        Math.min(MAX_BITRATE_MBPS, progress + MIN_BITRATE_MBPS));
-                mBinding.tvClipBitrate.setText(mVideoBitrateMbps + " Mbps");
-                if (mClipBufferManager != null) {
-                    mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
-                }
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-                // The rolling buffer applies the new bitrate when the next segment starts.
-            }
-        });
-        // 6 Mbps is the default balance of quality and file size.
-        mBinding.seekClipBitrate.setProgress(mVideoBitrateMbps - MIN_BITRATE_MBPS);
+        mBinding.btnGallery.setOnClickListener(v -> openGallery());
 
         mBinding.btnClipNow.setOnClickListener(v -> {
             if (mClipBufferManager == null) {
@@ -285,23 +182,67 @@ public class MainActivity extends AppCompatActivity {
             }
             mIsSavingClip = true;
             mBinding.btnClipNow.setEnabled(false);
+            mBinding.btnClipNow.setText("SAVING");
             Toast.makeText(this, "Saving clip...", Toast.LENGTH_SHORT).show();
             mClipBufferManager.clipNow(new ClipBufferManager.ClipCallback() {
-                @Override
-                public void onClipSaved(java.io.File outputFile) {
+                @Override public void onClipSaved(java.io.File outputFile) {
                     mIsSavingClip = false;
                     mBinding.btnClipNow.setEnabled(hasEnoughStorage());
+                    mBinding.btnClipNow.setText("CLIP\nNOW");
                     Toast.makeText(MainActivity.this, "Clip saved: " + outputFile.getName(), Toast.LENGTH_SHORT).show();
                 }
-
-                @Override
-                public void onClipFailed(String reason) {
+                @Override public void onClipFailed(String reason) {
                     mIsSavingClip = false;
                     mBinding.btnClipNow.setEnabled(hasEnoughStorage());
+                    mBinding.btnClipNow.setText("CLIP\nNOW");
                     Toast.makeText(MainActivity.this, reason, Toast.LENGTH_SHORT).show();
                 }
             });
         });
+    }
+
+    private void setClipDuration(int seconds) {
+        mSelectedClipDurationSeconds = seconds;
+        if (mClipBufferManager != null) mClipBufferManager.setClipDurationSeconds(seconds);
+        updateDurationChips();
+        updateClipStatus();
+    }
+
+    private void updateDurationChips() {
+        mBinding.chipDuration30.setSelected(mSelectedClipDurationSeconds == 30);
+        mBinding.chipDuration60.setSelected(mSelectedClipDurationSeconds == 60);
+        mBinding.chipDuration90.setSelected(mSelectedClipDurationSeconds == 90);
+        mBinding.chipDuration120.setSelected(mSelectedClipDurationSeconds == 120);
+    }
+
+    private void showSettingsDialog() {
+        SettingsDialogFragment dialog = new SettingsDialogFragment(
+                mVideoBitrateMbps, mSelectedClipDurationSeconds, mClipBufferManager);
+        dialog.setOnSettingsChangedListener((bitrateMbps, durationSeconds) -> {
+            mVideoBitrateMbps = Math.max(MIN_BITRATE_MBPS, Math.min(MAX_BITRATE_MBPS, bitrateMbps));
+            if (mClipBufferManager != null) {
+                mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
+                mClipBufferManager.setClipDurationSeconds(durationSeconds);
+            }
+            mSelectedClipDurationSeconds = durationSeconds;
+            mBinding.tvClipBitrate.setText(mVideoBitrateMbps + " Mbps");
+            updateDurationChips();
+            updateClipStatus();
+        });
+        dialog.show(getSupportFragmentManager(), "settings");
+    }
+
+    private void openGallery() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setType("video/*");
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            Intent fallback = new Intent(Intent.ACTION_PICK);
+            fallback.setDataAndType(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, "video/*");
+            startActivity(fallback);
+        }
     }
 
     private void showCameraControlsDialog() {
@@ -527,8 +468,7 @@ public class MainActivity extends AppCompatActivity {
             if (mClipBufferManager == null) {
                 mClipBufferManager = new ClipBufferManager(MainActivity.this, mCameraHelper);
             }
-            mClipBufferManager.setClipDurationSeconds(
-                    CLIP_DURATIONS_SECONDS[mBinding.seekClipDuration.getProgress()]);
+            mClipBufferManager.setClipDurationSeconds(mSelectedClipDurationSeconds);
             mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
             applyVideoCaptureConfig();
             mClipBufferManager.start();
@@ -596,60 +536,63 @@ public class MainActivity extends AppCompatActivity {
             if (mIsCameraConnected) {
                 mBinding.viewMainPreview.setVisibility(View.VISIBLE);
                 mBinding.tvConnectUSBCameraTip.setVisibility(View.GONE);
-
-                mBinding.fabPicture.setVisibility(View.VISIBLE);
-                mBinding.fabVideo.setVisibility(View.VISIBLE);
-                mBinding.tvClipDuration.setVisibility(View.VISIBLE);
-                mBinding.seekClipDuration.setVisibility(View.VISIBLE);
+                mBinding.topControls.setVisibility(View.VISIBLE);
+                mBinding.bottomControls.setVisibility(View.VISIBLE);
+                mBinding.bufferProgress.setVisibility(View.VISIBLE);
                 mBinding.tvClipBitrate.setVisibility(View.VISIBLE);
-                mBinding.seekClipBitrate.setVisibility(View.VISIBLE);
-                mBinding.tvClipStatus.setVisibility(View.VISIBLE);
                 mBinding.btnClipNow.setVisibility(View.VISIBLE);
+                mBinding.btnManualRecord.setVisibility(View.VISIBLE);
+                mBinding.btnGallery.setVisibility(View.VISIBLE);
+                mBinding.tvConnectionStatus.setText("Capture Clipper connected");
+                mBinding.connectionDot.setBackgroundTintList(ColorStateList.valueOf(0xFF00E5FF));
+                startConnectionPulse();
                 mBinding.btnClipNow.setEnabled(hasEnoughStorage());
-
-                // Update record button
-                int colorId = R.color.WHITE;
-                if (mIsRecording) {
-                    colorId = R.color.RED;
-                }
-                ColorStateList colorStateList = ColorStateList.valueOf(getResources().getColor(colorId));
-                mBinding.fabVideo.setSupportImageTintList(colorStateList);
-
+                mBinding.tvClipBitrate.setText(mVideoBitrateMbps + " Mbps");
             } else {
                 mBinding.viewMainPreview.setVisibility(View.GONE);
                 mBinding.tvConnectUSBCameraTip.setVisibility(View.VISIBLE);
-
-                mBinding.fabPicture.setVisibility(View.GONE);
-                mBinding.fabVideo.setVisibility(View.GONE);
-                mBinding.tvClipDuration.setVisibility(View.GONE);
-                mBinding.seekClipDuration.setVisibility(View.GONE);
+                mBinding.topControls.setVisibility(View.VISIBLE);
+                mBinding.bottomControls.setVisibility(View.GONE);
+                mBinding.bufferProgress.setVisibility(View.GONE);
                 mBinding.tvClipBitrate.setVisibility(View.GONE);
-                mBinding.seekClipBitrate.setVisibility(View.GONE);
-                mBinding.tvClipStatus.setVisibility(View.GONE);
                 mBinding.btnClipNow.setVisibility(View.GONE);
-
+                mBinding.btnManualRecord.setVisibility(View.GONE);
+                mBinding.btnGallery.setVisibility(View.GONE);
+                mBinding.tvConnectionStatus.setText("Capture Clipper disconnected");
+                mBinding.connectionDot.setBackgroundTintList(ColorStateList.valueOf(0x66B8B2C9));
+                stopConnectionPulse();
                 mBinding.tvVideoRecordTime.setVisibility(View.GONE);
             }
-            invalidateOptionsMenu();
         });
+    }
+
+    private void startConnectionPulse() {
+        if (mConnectionPulse != null) return;
+        mConnectionPulse = ObjectAnimator.ofFloat(mBinding.connectionDot, View.ALPHA, 1f, 0.35f, 1f);
+        mConnectionPulse.setDuration(1100);
+        mConnectionPulse.setRepeatCount(ObjectAnimator.INFINITE);
+        mConnectionPulse.start();
+    }
+
+    private void stopConnectionPulse() {
+        if (mConnectionPulse != null) {
+            mConnectionPulse.cancel();
+            mConnectionPulse = null;
+            mBinding.connectionDot.setAlpha(1f);
+        }
     }
 
     private void updateClipStatus() {
         if (mBinding == null || !mIsCameraConnected || mClipBufferManager == null) return;
-
         int buffered = mClipBufferManager.getBufferedSeconds();
         int target = mClipBufferManager.getClipDurationSeconds();
-        if (buffered < target) {
-            mBinding.tvClipStatus.setText("Buffering: " + buffered + " / " + target + "s");
-        } else {
-            mBinding.tvClipStatus.setText("Buffer ready: " + buffered + "s");
-        }
-
+        mBinding.bufferProgress.setProgress(buffered, target);
         if (!hasEnoughStorage()) {
-            mBinding.tvClipStatus.setText("Low storage — free space to save clips");
+            mBinding.tvClipBitrate.setText("Low storage");
             mBinding.btnClipNow.setEnabled(false);
-        } else if (!mIsSavingClip && !mBinding.btnClipNow.isEnabled()) {
-            mBinding.btnClipNow.setEnabled(true);
+        } else {
+            mBinding.tvClipBitrate.setText(mVideoBitrateMbps + " Mbps");
+            if (!mIsSavingClip && !mBinding.btnClipNow.isEnabled()) mBinding.btnClipNow.setEnabled(true);
         }
     }
 
