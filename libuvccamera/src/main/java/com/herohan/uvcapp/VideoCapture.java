@@ -657,7 +657,6 @@ public class VideoCapture {
             if (mVideoBufferInfo.size > 0) {
                 outputBuffer.position(mVideoBufferInfo.offset);
                 outputBuffer.limit(mVideoBufferInfo.offset + mVideoBufferInfo.size);
-                mVideoBufferInfo.presentationTimeUs = (System.nanoTime() / 1000);
 
                 synchronized (mMuxerLock) {
 
