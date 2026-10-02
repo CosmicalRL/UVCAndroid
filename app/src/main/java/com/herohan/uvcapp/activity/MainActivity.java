@@ -7,6 +7,7 @@ import android.graphics.SurfaceTexture;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.os.Bundle;
+import android.media.MediaScannerConnection;
 import android.os.Handler;
 import android.os.StatFs;
 
@@ -763,35 +764,52 @@ public class MainActivity extends AppCompatActivity {
 
     private void startRecord() {
         File file = new File(SaveHelper.getSaveVideoPath());
-        VideoCapture.OutputFileOptions options =
-                new VideoCapture.OutputFileOptions.Builder(file).build();
-        mCameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
+        if (file.exists()) {
+            String path = file.getAbsolutePath();
+            int dot = path.lastIndexOf('.');
+            String base = dot > 0 ? path.substring(0, dot) : path;
+            String ext = dot > 0 ? path.substring(dot) : ".mp4";
+            file = new File(base + "_record_" + System.currentTimeMillis() + ext);
+        }
+
+        if (mClipBufferManager == null) {
+            Toast.makeText(this, "Recorder is not ready", Toast.LENGTH_SHORT).show();
+            mIsRecording = false;
+            updateUIControls();
+            return;
+        }
+
+        mClipBufferManager.startManualRecording(file, new ClipBufferManager.ManualRecordCallback() {
             @Override
             public void onStart() {
                 startRecordTimer();
             }
 
             @Override
-            public void onVideoSaved(@NonNull VideoCapture.OutputFileResults outputFileResults) {
+            public void onSaved(File outputFile) {
                 toggleVideoRecord(false);
-
-                Toast.makeText(
+                MediaScannerConnection.scanFile(
                         MainActivity.this,
-                        "save \"" + UriHelper.getPath(MainActivity.this, outputFileResults.getSavedUri()) + "\"",
-                        Toast.LENGTH_SHORT).show();
+                        new String[]{outputFile.getAbsolutePath()},
+                        new String[]{"video/mp4"},
+                        (path, uri) -> runOnUiThread(() ->
+                                Toast.makeText(MainActivity.this,
+                                        "Recording saved",
+                                        Toast.LENGTH_SHORT).show()));
             }
 
             @Override
-            public void onError(int videoCaptureError, @NonNull String message, @Nullable Throwable cause) {
+            public void onError(String message) {
                 toggleVideoRecord(false);
-
                 Toast.makeText(MainActivity.this, message, Toast.LENGTH_LONG).show();
             }
         });
     }
 
     private void stopRecord() {
-        mCameraHelper.stopRecording();
+        if (mClipBufferManager != null) {
+            mClipBufferManager.stopManualRecording();
+        }
     }
 
     private void startRecordTimer() {
