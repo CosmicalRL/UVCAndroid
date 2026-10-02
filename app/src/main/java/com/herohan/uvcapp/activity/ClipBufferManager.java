@@ -221,6 +221,17 @@ public final class ClipBufferManager {
                     currentSegment = null;
                     currentSegmentStartElapsed = 0L;
 
+                    if (manualRecordingRequested && pendingManualOutputFile != null) {
+                        File manualFile = pendingManualOutputFile;
+                        pendingManualOutputFile = null;
+                        ManualRecordCallback callback = pendingManualStartCallback;
+                        pendingManualStartCallback = null;
+                        if (callback != null) {
+                            startManualCapture(manualFile, callback);
+                        }
+                        return;
+                    }
+
                     if (saved != null && saved.exists() && saved.length() > 0) {
                         segments.addLast(saved);
                         while (segments.size() > MAX_SEGMENTS) {
