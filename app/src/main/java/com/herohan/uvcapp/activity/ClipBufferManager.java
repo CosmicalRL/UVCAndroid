@@ -7,6 +7,7 @@
 package com.herohan.uvcapp.activity;
 
 import android.os.Handler;
+import android.os.SystemClock;
 import android.os.Looper;
 import android.util.Log;
 
@@ -75,6 +76,7 @@ public final class ClipBufferManager {
     private volatile boolean stoppingForClip;
     private ScheduledFuture<?> rotateFuture;
     private File currentSegment;
+    private long currentSegmentStartElapsed;
     private ClipCallback pendingClipCallback;
 
     public ClipBufferManager(android.content.Context context, ICameraHelper cameraHelper) {
@@ -100,12 +102,21 @@ public final class ClipBufferManager {
         return videoBitrateBps;
     }
 
+    public synchronized int getBufferedSeconds() {
+        long bufferedMs = segments.size() * SEGMENT_MS;
+        if (cameraHelper.isRecording() && currentSegmentStartElapsed > 0L) {
+            bufferedMs += Math.max(0L, SystemClock.elapsedRealtime() - currentSegmentStartElapsed);
+        }
+        return (int) Math.min(MAX_CLIP_SECONDS, bufferedMs / 1000L);
+    }
+
     public synchronized void start() {
         if (running) {
             return;
         }
         running = true;
         stoppingForClip = false;
+        cleanupStaleTemporarySegments();
         startSegment();
     }
 
@@ -173,6 +184,8 @@ public final class ClipBufferManager {
             @Override
             public void onStart() {
                 synchronized (ClipBufferManager.this) {
+                    currentSegmentStartElapsed = SystemClock.elapsedRealtime();
+
                     if (!running) {
                         cameraHelper.stopRecording();
                         return;
@@ -197,6 +210,7 @@ public final class ClipBufferManager {
                 synchronized (ClipBufferManager.this) {
                     File saved = currentSegment;
                     currentSegment = null;
+                    currentSegmentStartElapsed = 0L;
 
                     if (saved != null && saved.exists() && saved.length() > 0) {
                         segments.addLast(saved);
@@ -219,6 +233,7 @@ public final class ClipBufferManager {
             public void onError(int error, @NonNull String message, Throwable cause) {
                 synchronized (ClipBufferManager.this) {
                     currentSegment = null;
+                    currentSegmentStartElapsed = 0L;
                     Log.e(TAG, "Rolling segment failed: " + message, cause);
 
                     if (stoppingForClip) {
@@ -308,6 +323,17 @@ public final class ClipBufferManager {
                 }
             }
         });
+    }
+
+    private void cleanupStaleTemporarySegments() {
+        File bufferDir = new File(context.getCacheDir(), "clip_buffer");
+        File[] files = bufferDir.listFiles();
+        if (files == null) return;
+
+        long cutoff = System.currentTimeMillis() - TimeUnit.HOURS.toMillis(6);
+        for (File file : files) {
+            if (file.isFile() && file.lastModified() < cutoff) safeDelete(file);
+        }
     }
 
     private File createTemporarySegmentFile() {
