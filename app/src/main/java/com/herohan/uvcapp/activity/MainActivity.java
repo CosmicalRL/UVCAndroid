@@ -292,7 +292,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!isNewerVersion(latest, CURRENT_VERSION)) return;
 
                 String notes = bodyMatcher.find() ? bodyMatcher.group(1)
-                        .replace("\\r", "").replace("\\n", "\n").replace("\\"", """) : "Bug fixes and improvements.";
+                        .replace("\\r", "").replace("\\n", "\n").replace("\\\"", "\"") : "Bug fixes and improvements.";
                 String releaseUrl = urlMatcher.find() ? urlMatcher.group(1) : "https://github.com/CosmicalRL/UVCAndroid/releases";
 
                 if (latest.equals(getPreferences(MODE_PRIVATE).getString(PREF_SKIPPED_VERSION, ""))) return;
