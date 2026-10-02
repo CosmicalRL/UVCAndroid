@@ -39,13 +39,6 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.TextureView;
 import android.view.View;
-import android.view.Gravity;
-import android.view.Window;
-import android.app.AlertDialog;
-import android.graphics.Color;
-import android.graphics.drawable.GradientDrawable;
-import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.SeekBar;
 
@@ -239,29 +232,24 @@ public class MainActivity extends AppCompatActivity {
         });
 
         mBinding.seekClipDuration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                applyDurationSelection(progress);
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int seconds = CLIP_DURATIONS_SECONDS[Math.max(0, Math.min(progress, CLIP_DURATIONS_SECONDS.length - 1))];
+                mBinding.tvClipDuration.setText(seconds + "s clip");
+                if (mClipBufferManager != null) {
+                    mClipBufferManager.setClipDurationSeconds(seconds);
+                }
             }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
         });
         mBinding.seekClipDuration.setProgress(0);
-
-        View.OnClickListener durationListener = v -> {
-            int index = 0;
-            if (v == mBinding.btnDuration60) index = 1;
-            else if (v == mBinding.btnDuration90) index = 2;
-            else if (v == mBinding.btnDuration120) index = 3;
-            mBinding.seekClipDuration.setProgress(index);
-            applyDurationSelection(index);
-        };
-        mBinding.btnDuration30.setOnClickListener(durationListener);
-        mBinding.btnDuration60.setOnClickListener(durationListener);
-        mBinding.btnDuration90.setOnClickListener(durationListener);
-        mBinding.btnDuration120.setOnClickListener(durationListener);
-
-        mBinding.btnAperture.setOnClickListener(v -> showCameraControlsDialog());
-        mBinding.btnSettings.setOnClickListener(v -> showSettingsMenu());
 
         mBinding.seekClipBitrate.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -291,6 +279,12 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Buffer not ready yet", Toast.LENGTH_SHORT).show();
                 return;
             }
+            int bufferedSeconds = mClipBufferManager.getBufferedSeconds();
+            int targetSeconds = mClipBufferManager.getClipDurationSeconds();
+            if (bufferedSeconds < targetSeconds) {
+                Toast.makeText(this, "Buffering: " + bufferedSeconds + " / " + targetSeconds + "s", Toast.LENGTH_SHORT).show();
+                return;
+            }
             if (!hasEnoughStorage()) {
                 Toast.makeText(this, "Not enough storage for a clip", Toast.LENGTH_LONG).show();
                 return;
@@ -302,7 +296,9 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onClipSaved(java.io.File outputFile) {
                     mIsSavingClip = false;
-                    mBinding.btnClipNow.setEnabled(hasEnoughStorage());
+                    mBinding.btnClipNow.setEnabled(hasEnoughStorage()
+                        && mClipBufferManager != null
+                        && mClipBufferManager.getBufferedSeconds() >= mClipBufferManager.getClipDurationSeconds());
                     Toast.makeText(MainActivity.this, "Clip saved: " + outputFile.getName(), Toast.LENGTH_SHORT).show();
                 }
 
@@ -314,182 +310,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         });
-    }
-
-    private void applyDurationSelection(int index) {
-        int safe = Math.max(0, Math.min(index, CLIP_DURATIONS_SECONDS.length - 1));
-        int seconds = CLIP_DURATIONS_SECONDS[safe];
-        mBinding.tvClipDuration.setText(seconds + "s clip");
-        mBinding.btnDuration30.setSelected(safe == 0);
-        mBinding.btnDuration60.setSelected(safe == 1);
-        mBinding.btnDuration90.setSelected(safe == 2);
-        mBinding.btnDuration120.setSelected(safe == 3);
-        if (mClipBufferManager != null) {
-            mClipBufferManager.setClipDurationSeconds(seconds);
-        }
-        if (mBinding.tvBufferNumber != null) {
-            mBinding.tvBufferNumber.setText(String.valueOf(seconds));
-        }
-    }
-
-    private void showSettingsMenu() {
-        final String[] items = {"Quality & Format", "Bitrate", "Resolution", "Gallery"};
-        showNeonMenu("SETTINGS", "CAPTURE CLIPPER", items, which -> {
-            if (which == 0) {
-                showVideoFormatDialog();
-            } else if (which == 1) {
-                showBitrateMenu();
-            } else if (which == 2) {
-                showVideoFormatDialog();
-            } else {
-                openGallery();
-            }
-        });
-    }
-
-    private void showBitrateMenu() {
-        final String[] values = {"1 Mbps", "6 Mbps", "12 Mbps", "25 Mbps", "50 Mbps", "100 Mbps", "150 Mbps", "250 Mbps"};
-        showNeonChoiceMenu("BITRATE", "ROLLING BUFFER ENCODER", values, bitrateChoiceIndex(), which -> {
-            int[] mbps = {1, 6, 12, 25, 50, 100, 150, 250};
-            mVideoBitrateMbps = mbps[which];
-            mBinding.seekClipBitrate.setProgress(mVideoBitrateMbps - MIN_BITRATE_MBPS);
-            if (mClipBufferManager != null) {
-                mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
-            }
-            applyVideoCaptureConfig();
-        });
-    }
-
-    private interface NeonMenuListener {
-        void onClick(int which);
-    }
-
-    private void showNeonMenu(String title, String subtitle, String[] items,
-                              NeonMenuListener listener) {
-        final AlertDialog[] holder = new AlertDialog[1];
-        LinearLayout root = createNeonDialogRoot(title, subtitle);
-        for (int i = 0; i < items.length; i++) {
-            final int index = i;
-            TextView row = createNeonRow(items[i], false);
-            row.setOnClickListener(v -> {
-                listener.onClick(index);
-                if (holder[0] != null) holder[0].dismiss();
-            });
-            root.addView(row);
-        }
-        holder[0] = new AlertDialog.Builder(this).setView(root).create();
-        holder[0].setOnShowListener(d -> styleNeonDialog(holder[0]));
-        holder[0].show();
-        styleNeonDialog(holder[0]);
-    }
-
-    private void showNeonChoiceMenu(String title, String subtitle, String[] items, int selected,
-                                    NeonMenuListener listener) {
-        final AlertDialog[] holder = new AlertDialog[1];
-        LinearLayout root = createNeonDialogRoot(title, subtitle);
-        for (int i = 0; i < items.length; i++) {
-            final int index = i;
-            TextView row = createNeonRow(items[i], i == selected);
-            row.setOnClickListener(v -> {
-                listener.onClick(index);
-                if (holder[0] != null) holder[0].dismiss();
-            });
-            root.addView(row);
-        }
-        holder[0] = new AlertDialog.Builder(this).setView(root).create();
-        holder[0].setOnShowListener(d -> styleNeonDialog(holder[0]));
-        holder[0].show();
-        styleNeonDialog(holder[0]);
-    }
-
-    private LinearLayout createNeonDialogRoot(String title, String subtitle) {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(22), dp(20), dp(22), dp(18));
-        root.setBackground(neonPanelBackground());
-
-        TextView heading = new TextView(this);
-        heading.setText(title);
-        heading.setTextColor(Color.WHITE);
-        heading.setTextSize(20);
-        heading.setTypeface(null, android.graphics.Typeface.BOLD);
-        heading.setLetterSpacing(0.08f);
-        root.addView(heading, new LinearLayout.LayoutParams(-1, -2));
-
-        TextView sub = new TextView(this);
-        sub.setText(subtitle);
-        sub.setTextColor(Color.rgb(0, 229, 255));
-        sub.setTextSize(10);
-        sub.setLetterSpacing(0.12f);
-        LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(-1, -2);
-        subParams.topMargin = dp(4);
-        subParams.bottomMargin = dp(12);
-        root.addView(sub, subParams);
-        return root;
-    }
-
-    private TextView createNeonRow(String text, boolean selected) {
-        TextView row = new TextView(this);
-        row.setText(text);
-        row.setTextColor(Color.WHITE);
-        row.setTextSize(15);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(16), 0, dp(16), 0);
-        row.setMinHeight(dp(52));
-        row.setBackground(neonRowBackground(selected));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(52));
-        params.bottomMargin = dp(7);
-        row.setLayoutParams(params);
-        return row;
-    }
-
-    private GradientDrawable neonPanelBackground() {
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Color.rgb(8, 10, 20));
-        bg.setCornerRadius(dp(24));
-        bg.setStroke(dp(1), Color.rgb(92, 59, 181));
-        return bg;
-    }
-
-    private GradientDrawable neonRowBackground(boolean selected) {
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(selected ? Color.rgb(35, 24, 68) : Color.rgb(16, 18, 30));
-        bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(selected ? 2 : 1), selected ? Color.rgb(0, 229, 255) : Color.rgb(54, 42, 91));
-        return bg;
-    }
-
-    private void styleNeonDialog(AlertDialog dialog) {
-        Window window = dialog.getWindow();
-        if (window == null) return;
-        window.setBackgroundDrawableResource(android.R.color.transparent);
-        android.view.WindowManager.LayoutParams lp = window.getAttributes();
-        lp.dimAmount = 0.72f;
-        lp.width = (int) (getResources().getDisplayMetrics().widthPixels * 0.88f);
-        window.setAttributes(lp);
-    }
-
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
-    }
-
-    private void openGallery() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setType("video/*");
-            startActivity(intent);
-        } catch (android.content.ActivityNotFoundException e) {
-            Toast.makeText(this, "No video gallery is installed.", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private int bitrateChoiceIndex() {
-        int[] mbps = {1, 6, 12, 25, 50, 100, 150, 250};
-        int best = 0;
-        for (int i = 0; i < mbps.length; i++) {
-            if (mbps[i] == mVideoBitrateMbps) return i;
-        }
-        return best;
     }
 
     private void showCameraControlsDialog() {
@@ -785,21 +605,15 @@ public class MainActivity extends AppCompatActivity {
                 mBinding.viewMainPreview.setVisibility(View.VISIBLE);
                 mBinding.tvConnectUSBCameraTip.setVisibility(View.GONE);
 
-                mBinding.fabPicture.setVisibility(View.GONE);
+                mBinding.fabPicture.setVisibility(View.VISIBLE);
                 mBinding.fabVideo.setVisibility(View.VISIBLE);
-                mBinding.durationSelector.setVisibility(View.VISIBLE);
-                mBinding.btnAperture.setVisibility(View.VISIBLE);
-                mBinding.btnSettings.setVisibility(View.VISIBLE);
-                mBinding.tvConnection.setVisibility(View.VISIBLE);
-                mBinding.tvBufferNumber.setVisibility(View.VISIBLE);
-                mBinding.tvClipDuration.setVisibility(View.GONE);
-                mBinding.seekClipDuration.setVisibility(View.GONE);
-                mBinding.tvClipBitrate.setVisibility(View.GONE);
-                mBinding.seekClipBitrate.setVisibility(View.GONE);
-                mBinding.tvClipStatus.setVisibility(View.GONE);
+                mBinding.tvClipDuration.setVisibility(View.VISIBLE);
+                mBinding.seekClipDuration.setVisibility(View.VISIBLE);
+                mBinding.tvClipBitrate.setVisibility(View.VISIBLE);
+                mBinding.seekClipBitrate.setVisibility(View.VISIBLE);
+                mBinding.tvClipStatus.setVisibility(View.VISIBLE);
                 mBinding.btnClipNow.setVisibility(View.VISIBLE);
                 mBinding.btnClipNow.setEnabled(hasEnoughStorage());
-                applyDurationSelection(mBinding.seekClipDuration.getProgress());
 
                 // Update record button
                 int colorId = R.color.WHITE;
@@ -815,17 +629,13 @@ public class MainActivity extends AppCompatActivity {
 
                 mBinding.fabPicture.setVisibility(View.GONE);
                 mBinding.fabVideo.setVisibility(View.GONE);
-                mBinding.durationSelector.setVisibility(View.GONE);
-                mBinding.btnAperture.setVisibility(View.GONE);
-                mBinding.btnSettings.setVisibility(View.GONE);
-                mBinding.tvConnection.setVisibility(View.GONE);
-                mBinding.tvBufferNumber.setVisibility(View.GONE);
                 mBinding.tvClipDuration.setVisibility(View.GONE);
                 mBinding.seekClipDuration.setVisibility(View.GONE);
                 mBinding.tvClipBitrate.setVisibility(View.GONE);
                 mBinding.seekClipBitrate.setVisibility(View.GONE);
                 mBinding.tvClipStatus.setVisibility(View.GONE);
                 mBinding.btnClipNow.setVisibility(View.GONE);
+
                 mBinding.tvVideoRecordTime.setVisibility(View.GONE);
             }
             invalidateOptionsMenu();
@@ -837,13 +647,17 @@ public class MainActivity extends AppCompatActivity {
 
         int buffered = mClipBufferManager.getBufferedSeconds();
         int target = mClipBufferManager.getClipDurationSeconds();
-        mBinding.tvBufferNumber.setText(String.valueOf(target));
+        if (buffered < target) {
+            mBinding.tvClipStatus.setText("Buffering: " + buffered + " / " + target + "s");
+        } else {
+            mBinding.tvClipStatus.setText("Buffer ready: " + buffered + "s");
+        }
 
         if (!hasEnoughStorage()) {
             mBinding.tvClipStatus.setText("Low storage — free space to save clips");
             mBinding.btnClipNow.setEnabled(false);
-        } else if (!mIsSavingClip && !mBinding.btnClipNow.isEnabled()) {
-            mBinding.btnClipNow.setEnabled(true);
+        } else if (!mIsSavingClip) {
+            mBinding.btnClipNow.setEnabled(buffered >= target);
         }
     }
 

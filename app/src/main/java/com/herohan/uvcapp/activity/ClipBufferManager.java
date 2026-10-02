@@ -147,6 +147,15 @@ public final class ClipBufferManager {
             return;
         }
 
+        int bufferedSeconds = getBufferedSeconds();
+        if (bufferedSeconds < clipDurationSeconds) {
+            final int buffered = bufferedSeconds;
+            final int target = clipDurationSeconds;
+            mainHandler.post(() -> callback.onClipFailed(
+                    "Buffering: " + buffered + " / " + target + "s"));
+            return;
+        }
+
         stoppingForClip = true;
         pendingClipCallback = callback;
         if (rotateFuture != null) {
