@@ -360,15 +360,19 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private interface NeonMenuListener {
+        void onClick(int which);
+    }
+
     private void showNeonMenu(String title, String subtitle, String[] items,
-                              android.content.DialogInterface.OnClickListener listener) {
+                              NeonMenuListener listener) {
         final AlertDialog[] holder = new AlertDialog[1];
         LinearLayout root = createNeonDialogRoot(title, subtitle);
         for (int i = 0; i < items.length; i++) {
             final int index = i;
             TextView row = createNeonRow(items[i], false);
             row.setOnClickListener(v -> {
-                listener.onClick(holder[0], index);
+                listener.onClick(index);
                 if (holder[0] != null) holder[0].dismiss();
             });
             root.addView(row);
@@ -380,7 +384,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showNeonChoiceMenu(String title, String subtitle, String[] items, int selected,
-                                    android.content.DialogInterface.OnClickListener listener) {
+                                    NeonMenuListener listener) {
         final AlertDialog[] holder = new AlertDialog[1];
         LinearLayout root = createNeonDialogRoot(title, subtitle);
         for (int i = 0; i < items.length; i++) {
