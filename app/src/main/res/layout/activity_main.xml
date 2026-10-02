@@ -28,6 +28,7 @@
 
     <LinearLayout
         android:id="@+id/topBar"
+        android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
@@ -75,6 +76,7 @@
 
     <FrameLayout
         android:id="@+id/bufferRingContainer"
+        android:visibility="gone"
         android:layout_width="94dp"
         android:layout_height="94dp"
         android:layout_gravity="top|center_horizontal"
@@ -117,6 +119,7 @@
 
     <LinearLayout
         android:id="@+id/bottomControls"
+        android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
