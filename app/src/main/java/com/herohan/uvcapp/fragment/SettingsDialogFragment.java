@@ -61,6 +61,7 @@ public class SettingsDialogFragment extends DialogFragment {
             binding.tvStorageUsed.setText("Storage used: " + formatBytes(folderSize(cache)));
             Toast.makeText(requireContext(), "Cleared " + deleted + " buffer segment" + (deleted == 1 ? "" : "s"), Toast.LENGTH_SHORT).show();
         });
+        SaveHelper.checkBaseStoragePath();
         binding.tvSaveLocation.setText("Save location: " + SaveHelper.BaseStoragePath);
         try {
             PackageInfo info = requireContext().getPackageManager().getPackageInfo(requireContext().getPackageName(), 0);
