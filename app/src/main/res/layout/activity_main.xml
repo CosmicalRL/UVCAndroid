@@ -88,6 +88,7 @@
             android:progress="0"
             app:indicatorColor="#7F5AF0"
             app:trackColor="#20263A"
+            app:indicatorSize="82dp"
             app:trackThickness="7dp" />
 
         <TextView
