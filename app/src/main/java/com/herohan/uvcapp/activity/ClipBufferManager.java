@@ -6,10 +6,16 @@
  */
 package com.herohan.uvcapp.activity;
 
+import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.os.Looper;
 import android.util.Log;
+import android.content.ContentValues;
+import android.content.ContentResolver;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
 
 import androidx.annotation.NonNull;
 
@@ -25,6 +31,9 @@ import android.media.MediaScannerConnection;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.FileInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -515,24 +524,24 @@ public final class ClipBufferManager {
             return;
         }
 
-        final File output = createUniqueClipFile(input);
+        final File output = createUniqueClipFile();
 
         muxExecutor.execute(() -> {
             try {
                 muxSegments(input, output);
 
+                // Publish through MediaStore on Android 10+ so Gallery/Photos receives
+                // a real shared-media entry. The old raw external-storage + scanner
+                // path is unreliable once scoped storage is enforced.
+                File galleryFile = publishClipToGallery(output);
+
+                safeDelete(output);
                 for (File segment : input) {
                     safeDelete(segment);
                 }
 
                 if (requestedCallback != null) {
-                    // Force Gallery/Photos to notice the newly-created file instead of
-                    // waiting for a later background media scan.
-                    MediaScannerConnection.scanFile(
-                            context,
-                            new String[]{output.getAbsolutePath()},
-                            new String[]{"video/mp4"},
-                            (path, uri) -> mainHandler.post(() -> requestedCallback.onClipSaved(output)));
+                    mainHandler.post(() -> requestedCallback.onClipSaved(galleryFile));
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Unable to create clip", e);
@@ -573,28 +582,79 @@ public final class ClipBufferManager {
                 Integer.toHexString(System.identityHashCode(this)) + ".mp4");
     }
 
-    private static File createUniqueClipFile(List<File> inputFiles) {
-        File candidate = new File(SaveHelper.getSaveVideoPath());
-
-        File parent = candidate.getParentFile();
-        if (parent != null && !parent.exists() && !parent.mkdirs() && !parent.exists()) {
-            Log.w(TAG, "Could not create clip output directory: " + parent);
+    private File createUniqueClipFile() {
+        // Mux into app cache first. On Android 10+ the finished file is copied
+        // into MediaStore, which is the supported shared-media/Gallery path.
+        File dir = new File(context.getCacheDir(), "clip_output");
+        if (!dir.exists() && !dir.mkdirs() && !dir.exists()) {
+            Log.w(TAG, "Could not create clip output directory: " + dir);
         }
 
-        // SaveHelper uses second-level timestamps. Always add a millisecond
-        // suffix so rapid Clip Now presses cannot select the same output path
-        // before the first mux operation has created its file.
-        String path = candidate.getAbsolutePath();
-        int dot = path.lastIndexOf('.');
-        String base = dot > 0 ? path.substring(0, dot) : path;
-        String extension = dot > 0 ? path.substring(dot) : ".mp4";
-        candidate = new File(base + "_clip_" + System.currentTimeMillis() + extension);
-
+        String name = "CaptureClip_" + System.currentTimeMillis() + ".mp4";
+        File candidate = new File(dir, name);
         while (candidate.exists()) {
-            candidate = new File(base + "_clip_" + System.currentTimeMillis() + extension);
+            name = "CaptureClip_" + System.nanoTime() + ".mp4";
+            candidate = new File(dir, name);
+        }
+        return candidate;
+    }
+
+    private File publishClipToGallery(File source) throws IOException {
+        if (source == null || !source.exists() || source.length() <= 0) {
+            throw new IOException("Clip output is empty");
         }
 
-        return candidate;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContentResolver resolver = context.getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Video.Media.DISPLAY_NAME, source.getName());
+            values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+            values.put(MediaStore.Video.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_MOVIES + File.separator + "Capture Clipper");
+            values.put(MediaStore.Video.Media.IS_PENDING, 1);
+
+            Uri uri = resolver.insert(
+                    MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                    values);
+            if (uri == null) {
+                throw new IOException("Gallery refused the clip");
+            }
+
+            try (InputStream in = new FileInputStream(source);
+                 OutputStream out = resolver.openOutputStream(uri, "w")) {
+                if (out == null) {
+                    throw new IOException("Gallery output stream unavailable");
+                }
+                byte[] buffer = new byte[64 * 1024];
+                int count;
+                while ((count = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, count);
+                }
+                out.flush();
+            } catch (Exception e) {
+                resolver.delete(uri, null, null);
+                if (e instanceof IOException) {
+                    throw (IOException) e;
+                }
+                throw new IOException("Could not publish clip to Gallery", e);
+            }
+
+            ContentValues published = new ContentValues();
+            published.put(MediaStore.Video.Media.IS_PENDING, 0);
+            resolver.update(uri, published, null, null);
+
+            // The callback only uses the File name today. Keep that API stable while
+            // the actual user-visible copy lives in MediaStore.
+            return source;
+        }
+
+        // Legacy Android: keep the existing public file path and explicitly scan it.
+        MediaScannerConnection.scanFile(
+                context,
+                new String[]{source.getAbsolutePath()},
+                new String[]{"video/mp4"},
+                null);
+        return source;
     }
 
     private static void muxSegments(List<File> inputFiles, File output) throws IOException {
