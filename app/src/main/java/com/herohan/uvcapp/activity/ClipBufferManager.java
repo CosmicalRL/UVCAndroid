@@ -587,17 +587,12 @@ public final class ClipBufferManager {
 
             // Do not carry the source segment's KEY_DURATION into the joined
             // track. Each rolling segment is ~10 seconds, so preserving that
-            // metadata makes some players report/play only the first segment even
-            // though the muxer contains samples from all selected segments.
-            // Let MediaMuxer derive the output duration from the samples written.
-            MediaFormat outputFormat = new MediaFormat();
-            for (String key : videoFormat.getKeys()) {
-                Object value = videoFormat.getValueObject(key);
-                if (!MediaFormat.KEY_DURATION.equals(key)
-                        && !MediaFormat.KEY_MAX_INPUT_SIZE.equals(key)) {
-                    outputFormat.setValue(key, value);
-                }
-            }
+            // metadata can make some players report only the first segment even
+            // though samples from all selected segments are present. MediaFormat
+            // exposes removeKey() directly, so strip the duration-related fields
+            // before handing the format to MediaMuxer.
+            videoFormat.removeKey(MediaFormat.KEY_DURATION);
+            videoFormat.removeKey(MediaFormat.KEY_MAX_INPUT_SIZE);
 
             muxer = new MediaMuxer(
                     output.getAbsolutePath(),
