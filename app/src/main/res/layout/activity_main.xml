@@ -132,7 +132,7 @@
             android:layout_above="@id/btnClipNow"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="4dp"
-            android:max="3"
+            android:max="55"
             android:progress="0"
             android:visibility="gone" />
 
