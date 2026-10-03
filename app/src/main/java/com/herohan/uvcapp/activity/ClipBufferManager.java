@@ -448,6 +448,7 @@ public final class ClipBufferManager {
             // The current segment was just added by onVideoSaved.
             // With 1-second segments, every requested whole-second duration maps
             // directly to the number of segments to stitch.
+            int clipSegments = Math.max(1, clipDurationSeconds);
             int from = Math.max(0, available.size() - clipSegments);
             input = new ArrayList<>(available.subList(from, available.size()));
 
