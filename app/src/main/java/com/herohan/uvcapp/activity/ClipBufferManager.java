@@ -583,11 +583,17 @@ public final class ClipBufferManager {
     }
 
     private File createUniqueClipFile() {
-        // Mux into app cache first. On Android 10+ the finished file is copied
-        // into MediaStore, which is the supported shared-media/Gallery path.
-        File dir = new File(context.getCacheDir(), "clip_output");
-        if (!dir.exists() && !dir.mkdirs() && !dir.exists()) {
-            Log.w(TAG, "Could not create clip output directory: " + dir);
+        // Mux into app cache on Android 10+, then publish through MediaStore.
+        // On legacy Android keep the existing public SaveHelper destination.
+        File dir;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            dir = new File(context.getCacheDir(), "clip_output");
+        } else {
+            File publicFile = new File(SaveHelper.getSaveVideoPath());
+            dir = publicFile.getParentFile();
+        }
+        if (dir == null || (!dir.exists() && !dir.mkdirs() && !dir.exists())) {
+            throw new IllegalStateException("Could not create clip output directory");
         }
 
         String name = "CaptureClip_" + System.currentTimeMillis() + ".mp4";
