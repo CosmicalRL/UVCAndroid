@@ -667,18 +667,6 @@ public final class ClipBufferManager {
                 }
             }
 
-            // Tell MediaMuxer the duration of the final sample explicitly. Android's
-            // MediaMuxer documentation specifies an empty END_OF_STREAM sample for
-            // this purpose. This avoids copying the first 10-second segment's
-            // KEY_DURATION metadata into the joined track while keeping the output
-            // MP4 valid and giving players the full stitched duration.
-            if (lastOutputPts >= 0L) {
-                MediaCodec.BufferInfo endInfo = new MediaCodec.BufferInfo();
-                endInfo.set(0, 0, lastOutputPts + frameDurationUs,
-                        MediaCodec.BUFFER_FLAG_END_OF_STREAM);
-                ByteBuffer emptyBuffer = ByteBuffer.allocateDirect(0);
-                muxer.writeSampleData(videoTrack, emptyBuffer, endInfo);
-            }
         } finally {
             if (muxer != null) {
                 if (started) {
