@@ -538,13 +538,16 @@ public final class ClipBufferManager {
             Log.w(TAG, "Could not create clip output directory: " + parent);
         }
 
-        // SaveHelper uses second-level timestamps. Make the final Clip Now
-        // output unique if a file with that timestamp already exists.
-        if (candidate.exists()) {
-            String path = candidate.getAbsolutePath();
-            int dot = path.lastIndexOf('.');
-            String base = dot > 0 ? path.substring(0, dot) : path;
-            String extension = dot > 0 ? path.substring(dot) : ".mp4";
+        // SaveHelper uses second-level timestamps. Always add a millisecond
+        // suffix so rapid Clip Now presses cannot select the same output path
+        // before the first mux operation has created its file.
+        String path = candidate.getAbsolutePath();
+        int dot = path.lastIndexOf('.');
+        String base = dot > 0 ? path.substring(0, dot) : path;
+        String extension = dot > 0 ? path.substring(dot) : ".mp4";
+        candidate = new File(base + "_clip_" + System.currentTimeMillis() + extension);
+
+        while (candidate.exists()) {
             candidate = new File(base + "_clip_" + System.currentTimeMillis() + extension);
         }
 
