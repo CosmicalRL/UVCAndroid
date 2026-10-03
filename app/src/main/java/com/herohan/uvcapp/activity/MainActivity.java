@@ -89,7 +89,8 @@ public class MainActivity extends AppCompatActivity {
     private ICameraHelper mCameraHelper;
     private ClipBufferManager mClipBufferManager;
 
-    private static final int[] CLIP_DURATIONS_SECONDS = {30, 60, 90, 120};
+    private static final int MIN_CLIP_DURATION_SECONDS = 5;
+    private static final int MAX_CLIP_DURATION_SECONDS = 60;
     private static final int MIN_BITRATE_MBPS = 1;
     private static final int MAX_BITRATE_MBPS = 250;
     private int mVideoBitrateMbps = 6;
@@ -359,7 +360,7 @@ public class MainActivity extends AppCompatActivity {
         mBinding.seekClipDuration.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                int seconds = CLIP_DURATIONS_SECONDS[Math.max(0, Math.min(progress, CLIP_DURATIONS_SECONDS.length - 1))];
+                int seconds = MIN_CLIP_DURATION_SECONDS + Math.max(0, Math.min(progress, MAX_CLIP_DURATION_SECONDS - MIN_CLIP_DURATION_SECONDS));
                 mBinding.tvClipDuration.setText(seconds + "s clip");
                 if (mClipBufferManager != null) {
                     mClipBufferManager.setClipDurationSeconds(seconds);
@@ -374,7 +375,7 @@ public class MainActivity extends AppCompatActivity {
             public void onStopTrackingTouch(SeekBar seekBar) {
             }
         });
-        mBinding.seekClipDuration.setProgress(0);
+        mBinding.seekClipDuration.setProgress(30 - MIN_CLIP_DURATION_SECONDS);
 
         mBinding.seekClipBitrate.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -660,7 +661,7 @@ public class MainActivity extends AppCompatActivity {
                 mClipBufferManager = new ClipBufferManager(MainActivity.this, mCameraHelper);
             }
             mClipBufferManager.setClipDurationSeconds(
-                    CLIP_DURATIONS_SECONDS[mBinding.seekClipDuration.getProgress()]);
+                    MIN_CLIP_DURATION_SECONDS + Math.max(0, Math.min(mBinding.seekClipDuration.getProgress(), MAX_CLIP_DURATION_SECONDS - MIN_CLIP_DURATION_SECONDS)));
             mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
             applyVideoCaptureConfig();
             mClipBufferManager.start();
