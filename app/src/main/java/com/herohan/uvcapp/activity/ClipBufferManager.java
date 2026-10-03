@@ -586,6 +586,9 @@ public final class ClipBufferManager {
             }
         }
 
+        // A clip job owns its selected source files until muxing and Gallery
+        // publication are completely finished. This prevents the rolling
+        // recorder from recycling an input while the mux thread is reading it.
         if (input.isEmpty()) {
             synchronized (this) {
                 clipJobActive = false;
@@ -627,6 +630,8 @@ public final class ClipBufferManager {
                 // path is unreliable once scoped storage is enforced.
                 File galleryFile = publishClipToGallery(output);
 
+                // Only release source protection after the final Gallery
+                // publication step has succeeded.
                 safeDelete(output);
                 synchronized (ClipBufferManager.this) {
                     protectedSegments.removeAll(input);
@@ -923,6 +928,10 @@ public final class ClipBufferManager {
             // this purpose. This avoids copying the first 10-second segment's
             // KEY_DURATION metadata into the joined track while keeping the output
             // MP4 valid and giving players the full stitched duration.
+            if (lastOutputPts < 0L) {
+                throw new IOException("No decodable video samples found in buffered segments");
+            }
+
             if (lastOutputPts >= 0L) {
                 MediaCodec.BufferInfo endInfo = new MediaCodec.BufferInfo();
                 endInfo.set(0, 0, lastOutputPts + frameDurationUs,
