@@ -597,7 +597,7 @@ public final class ClipBufferManager {
             muxer = new MediaMuxer(
                     output.getAbsolutePath(),
                     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-            int videoTrack = muxer.addTrack(outputFormat);
+            int videoTrack = muxer.addTrack(videoFormat);
             muxer.start();
             started = true;
 
