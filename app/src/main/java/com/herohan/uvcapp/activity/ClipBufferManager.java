@@ -585,24 +585,39 @@ public final class ClipBufferManager {
                 throw new IOException("No video track found in buffered segments");
             }
 
-            // MediaExtractor may carry the source segment's duration in the
-            // MediaFormat. That duration is only ~10 seconds for each rolling
-            // segment and must not become the duration metadata of the joined
-            // output. MediaMuxer should derive the final duration from the
-            // samples we write below.
-            MediaFormat outputFormat = new MediaFormat();
-            for (String key : videoFormat.getKeys()) {
-                Object value = videoFormat.getValueObject(key);
-                if (!MediaFormat.KEY_DURATION.equals(key)
-                        && !MediaFormat.KEY_MAX_INPUT_SIZE.equals(key)) {
-                    outputFormat.setValue(key, value);
+            // Each rolling segment is about 10 seconds. MediaMuxer receives
+            // the format from the first segment, so without correcting KEY_DURATION
+            // some players can report/seek only the first segment even though all
+            // samples have been appended. Sum the actual segment duration metadata
+            // and publish that as the duration of the joined track.
+            long totalDurationUs = 0L;
+            for (File file : inputFiles) {
+                if (file == null || !file.exists() || file.length() <= 0) {
+                    continue;
                 }
+                MediaExtractor extractor = new MediaExtractor();
+                try {
+                    extractor.setDataSource(file.getAbsolutePath());
+                    int track = findVideoTrack(extractor);
+                    if (track >= 0) {
+                        MediaFormat segmentFormat = extractor.getTrackFormat(track);
+                        if (segmentFormat.containsKey(MediaFormat.KEY_DURATION)) {
+                            totalDurationUs += Math.max(0L,
+                                    segmentFormat.getLong(MediaFormat.KEY_DURATION));
+                        }
+                    }
+                } finally {
+                    extractor.release();
+                }
+            }
+            if (totalDurationUs > 0L) {
+                videoFormat.setLong(MediaFormat.KEY_DURATION, totalDurationUs);
             }
 
             muxer = new MediaMuxer(
                     output.getAbsolutePath(),
                     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-            int videoTrack = muxer.addTrack(outputFormat);
+            int videoTrack = muxer.addTrack(videoFormat);
             muxer.start();
             started = true;
 
