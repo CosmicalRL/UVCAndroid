@@ -39,6 +39,8 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -80,6 +82,8 @@ public final class ClipBufferManager {
             Executors.newSingleThreadExecutor();
 
     private final Deque<File> segments = new ArrayDeque<>();
+    // Segments used by an in-flight mux stay protected from rolling cleanup.
+    private final Set<File> protectedSegments = new HashSet<>();
 
     private volatile boolean running;
     private volatile boolean stoppingForClip;
@@ -88,6 +92,7 @@ public final class ClipBufferManager {
     private File currentSegment;
     private long currentSegmentStartElapsed;
     private ClipCallback pendingClipCallback;
+    private boolean clearAfterFinalization;
 
     // Manual recording temporarily takes over the encoder so the normal Record
     // button and rolling Clip Now buffer cannot fight over the same camera encoder.
@@ -141,6 +146,7 @@ public final class ClipBufferManager {
         }
         running = true;
         stoppingForClip = false;
+        clearAfterFinalization = false;
         cleanupStaleTemporarySegments();
         startSegment();
     }
@@ -164,6 +170,7 @@ public final class ClipBufferManager {
             startRetryFuture = null;
         }
 
+        clearAfterFinalization = true;
         if (cameraHelper != null && cameraHelper.isRecording()) {
             cameraHelper.stopRecording();
         }
@@ -396,8 +403,9 @@ public final class ClipBufferManager {
         File output = createTemporarySegmentFile();
         currentSegment = output;
 
+        final File segmentFile = output;
         VideoCapture.OutputFileOptions options =
-                new VideoCapture.OutputFileOptions.Builder(output).build();
+                new VideoCapture.OutputFileOptions.Builder(segmentFile).build();
 
         cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
             @Override
@@ -427,9 +435,16 @@ public final class ClipBufferManager {
             public void onVideoSaved(
                     @NonNull VideoCapture.OutputFileResults outputFileResults) {
                 synchronized (ClipBufferManager.this) {
-                    File saved = currentSegment;
-                    currentSegment = null;
-                    currentSegmentStartElapsed = 0L;
+                    File saved = segmentFile;
+                    if (segmentFile.equals(currentSegment)) {
+                        currentSegment = null;
+                        currentSegmentStartElapsed = 0L;
+                    }
+
+                    if (!running || clearAfterFinalization) {
+                        safeDelete(saved);
+                        return;
+                    }
 
                     if (manualRecordingRequested && pendingManualOutputFile != null) {
                         // This segment only exists to hand the encoder from the rolling
@@ -448,10 +463,7 @@ public final class ClipBufferManager {
 
                     if (saved != null && saved.exists() && saved.length() > 0) {
                         segments.addLast(saved);
-                        while (segments.size() > MAX_SEGMENTS) {
-                            File old = segments.removeFirst();
-                            safeDelete(old);
-                        }
+                        trimRollingBufferLocked();
                     }
 
                     if (stoppingForClip) {
@@ -466,8 +478,10 @@ public final class ClipBufferManager {
             @Override
             public void onError(int error, @NonNull String message, Throwable cause) {
                 synchronized (ClipBufferManager.this) {
-                    currentSegment = null;
-                    currentSegmentStartElapsed = 0L;
+                    if (segmentFile.equals(currentSegment)) {
+                        currentSegment = null;
+                        currentSegmentStartElapsed = 0L;
+                    }
                     Log.e(TAG, "Rolling segment failed: " + message, cause);
 
                     if (stoppingForClip) {
@@ -502,12 +516,9 @@ public final class ClipBufferManager {
             int from = Math.max(0, available.size() - clipSegments);
             input = new ArrayList<>(available.subList(from, available.size()));
 
-            // Detach the selected source files from the rolling deque before restarting
-            // recording. This prevents the rolling cleanup from deleting a file while it
-            // is being muxed in the background.
-            for (File segment : input) {
-                segments.remove(segment);
-            }
+            // Keep selected source files in the rolling deque while muxing.
+            // Protection prevents rolling cleanup from deleting active mux inputs.
+            protectedSegments.addAll(input);
             stoppingForClip = false;
 
             // Resume the rolling buffer immediately. The MP4 join happens off-thread.
@@ -536,8 +547,9 @@ public final class ClipBufferManager {
                 File galleryFile = publishClipToGallery(output);
 
                 safeDelete(output);
-                for (File segment : input) {
-                    safeDelete(segment);
+                synchronized (ClipBufferManager.this) {
+                    protectedSegments.removeAll(input);
+                    trimRollingBufferLocked();
                 }
 
                 if (requestedCallback != null) {
@@ -546,8 +558,9 @@ public final class ClipBufferManager {
             } catch (Exception e) {
                 Log.e(TAG, "Unable to create clip", e);
                 safeDelete(output);
-                for (File segment : input) {
-                    safeDelete(segment);
+                synchronized (ClipBufferManager.this) {
+                    protectedSegments.removeAll(input);
+                    trimRollingBufferLocked();
                 }
                 if (requestedCallback != null) {
                     String message = e.getMessage();
@@ -579,7 +592,7 @@ public final class ClipBufferManager {
         }
 
         return new File(bufferDir, "segment_" + System.currentTimeMillis() + "_" +
-                Integer.toHexString(System.identityHashCode(this)) + ".mp4");
+                System.nanoTime() + "_" + Integer.toHexString(System.identityHashCode(this)) + ".mp4");
     }
 
     private File createUniqueClipFile() {
@@ -727,6 +740,18 @@ public final class ClipBufferManager {
                     boolean segmentStarted = false;
 
                     while (true) {
+                        long sampleSizeLong = extractor.getSampleSize();
+                        if (sampleSizeLong > buffer.capacity()) {
+                            if (sampleSizeLong > 64L * 1024L * 1024L) {
+                                throw new IOException("Encoded video sample is too large: " + sampleSizeLong);
+                            }
+                            int capacity = buffer.capacity();
+                            while (capacity < sampleSizeLong) {
+                                capacity = Math.min(64 * 1024 * 1024, capacity * 2);
+                            }
+                            buffer = ByteBuffer.allocateDirect(capacity);
+                        }
+
                         int size = extractor.readSampleData(buffer, 0);
                         if (size < 0) {
                             break;
@@ -821,13 +846,27 @@ public final class ClipBufferManager {
         muxExecutor.shutdownNow();
     }
 
+    private synchronized void trimRollingBufferLocked() {
+        while (segments.size() > MAX_SEGMENTS) {
+            File old = segments.peekFirst();
+            if (old == null || protectedSegments.contains(old) || old.equals(currentSegment)) {
+                break;
+            }
+            segments.removeFirst();
+            safeDelete(old);
+        }
+    }
+
     private synchronized void clearSegments() {
         for (File segment : segments) {
-            safeDelete(segment);
+            if (!protectedSegments.contains(segment) && !segment.equals(currentSegment)) {
+                safeDelete(segment);
+            }
         }
         segments.clear();
 
-        if (currentSegment != null) {
+        // The active recording is finalized asynchronously; its callback owns the file.
+        if (currentSegment != null && !cameraHelper.isRecording()) {
             safeDelete(currentSegment);
             currentSegment = null;
         }
