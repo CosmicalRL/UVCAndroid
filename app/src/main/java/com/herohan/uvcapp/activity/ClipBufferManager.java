@@ -585,10 +585,24 @@ public final class ClipBufferManager {
                 throw new IOException("No video track found in buffered segments");
             }
 
+            // MediaExtractor may carry the source segment's duration in the
+            // MediaFormat. That duration is only ~10 seconds for each rolling
+            // segment and must not become the duration metadata of the joined
+            // output. MediaMuxer should derive the final duration from the
+            // samples we write below.
+            MediaFormat outputFormat = new MediaFormat();
+            for (String key : videoFormat.getKeys()) {
+                Object value = videoFormat.getValueObject(key);
+                if (!MediaFormat.KEY_DURATION.equals(key)
+                        && !MediaFormat.KEY_MAX_INPUT_SIZE.equals(key)) {
+                    outputFormat.setValue(key, value);
+                }
+            }
+
             muxer = new MediaMuxer(
                     output.getAbsolutePath(),
                     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
-            int videoTrack = muxer.addTrack(videoFormat);
+            int videoTrack = muxer.addTrack(outputFormat);
             muxer.start();
             started = true;
 
