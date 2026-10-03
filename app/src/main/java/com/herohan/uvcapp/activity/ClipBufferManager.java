@@ -75,6 +75,7 @@ public final class ClipBufferManager {
     private volatile boolean running;
     private volatile boolean stoppingForClip;
     private ScheduledFuture<?> rotateFuture;
+    private ScheduledFuture<?> startRetryFuture;
     private File currentSegment;
     private long currentSegmentStartElapsed;
     private ClipCallback pendingClipCallback;
@@ -149,6 +150,10 @@ public final class ClipBufferManager {
             rotateFuture.cancel(false);
             rotateFuture = null;
         }
+        if (startRetryFuture != null) {
+            startRetryFuture.cancel(false);
+            startRetryFuture = null;
+        }
 
         if (cameraHelper != null && cameraHelper.isRecording()) {
             cameraHelper.stopRecording();
@@ -210,6 +215,24 @@ public final class ClipBufferManager {
         if (manualRecordingActive && cameraHelper.isRecording()) {
             cameraHelper.stopRecording();
         }
+    }
+
+    private synchronized void startManualCaptureWhenReady(File outputFile, ManualRecordCallback callback) {
+        if (!running) {
+            callback.onError("Recorder is not running");
+            return;
+        }
+        if (cameraHelper.isRecording()) {
+            scheduler.schedule(() -> {
+                synchronized (ClipBufferManager.this) {
+                    if (running && !manualRecordingActive) {
+                        startManualCaptureWhenReady(outputFile, callback);
+                    }
+                }
+            }, 50L, TimeUnit.MILLISECONDS);
+            return;
+        }
+        startManualCapture(outputFile, callback);
     }
 
     private synchronized void startManualCapture(File outputFile, ManualRecordCallback callback) {
@@ -332,7 +355,25 @@ public final class ClipBufferManager {
     }
 
     private synchronized void startSegment() {
-        if (!running || stoppingForClip || cameraHelper.isRecording()) {
+        if (!running || stoppingForClip) {
+            return;
+        }
+
+        // VideoCapture finalizes a recording asynchronously. Its onVideoSaved callback
+        // can arrive just before the encoder resources are fully released, so immediately
+        // starting the next 1-second segment can race with the previous stop. Wait until
+        // the encoder reports idle instead of silently dropping the next segment.
+        if (cameraHelper.isRecording()) {
+            if (startRetryFuture == null || startRetryFuture.isDone()) {
+                startRetryFuture = scheduler.schedule(() -> {
+                    synchronized (ClipBufferManager.this) {
+                        startRetryFuture = null;
+                        if (running && !stoppingForClip) {
+                            startSegment();
+                        }
+                    }
+                }, 50L, TimeUnit.MILLISECONDS);
+            }
             return;
         }
 
@@ -391,7 +432,7 @@ public final class ClipBufferManager {
                         ManualRecordCallback callback = pendingManualStartCallback;
                         pendingManualStartCallback = null;
                         if (callback != null) {
-                            startManualCapture(manualFile, callback);
+                            startManualCaptureWhenReady(manualFile, callback);
                         }
                         return;
                     }
@@ -706,6 +747,12 @@ public final class ClipBufferManager {
             }
         }
         return -1;
+    }
+
+    public synchronized void shutdown() {
+        stop();
+        scheduler.shutdownNow();
+        muxExecutor.shutdownNow();
     }
 
     private synchronized void clearSegments() {
