@@ -1,6 +1,7 @@
 package com.herohan.uvcapp.activity;
 
 import android.Manifest;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
@@ -12,6 +13,7 @@ import android.os.Bundle;
 import android.media.MediaScannerConnection;
 import android.os.Handler;
 import android.os.StatFs;
+import android.provider.MediaStore;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -94,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int MIN_BITRATE_MBPS = 1;
     private static final int MAX_BITRATE_MBPS = 250;
     private int mVideoBitrateMbps = 6;
+    private int mVideoFrameRate = 25;
 
     private UsbDevice mUsbDevice;
     private final ICameraHelper.StateCallback mStateCallback = new MyCameraHelperCallback();
@@ -472,14 +475,38 @@ public class MainActivity extends AppCompatActivity {
 
         mFormatDialog = new VideoFormatDialogFragment(mCameraHelper.getSupportedFormatList(), mCameraHelper.getPreviewSize());
         mFormatDialog.setOnVideoFormatSelectListener(size -> {
-            if (mIsCameraConnected && !mCameraHelper.isRecording()) {
-                mCameraHelper.stopPreview();
-                mCameraHelper.setPreviewSize(size);
-                mCameraHelper.startPreview();
-                resizePreviewView(size);
-                // save selected preview size
-                setSavedPreviewSize(size);
+            if (!mIsCameraConnected || mCameraHelper == null) {
+                return;
             }
+            if (mIsRecording) {
+                Toast.makeText(this, "Stop manual recording before changing format.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // The rolling clip buffer owns the encoder, so isRecording() is normally
+            // true even when the user is not manually recording. Stop the buffer,
+            // apply the selected UVC format/FPS, then restart it.
+            if (mClipBufferManager != null) {
+                mClipBufferManager.stop();
+            }
+
+            mVideoFrameRate = Math.max(1, size.fps);
+            mCameraHelper.stopPreview();
+            mCameraHelper.setPreviewSize(size);
+            mCameraHelper.startPreview();
+            resizePreviewView(size);
+            setSavedPreviewSize(size);
+            applyVideoCaptureConfig();
+
+            if (mClipBufferManager != null) {
+                mClipBufferManager.setClipDurationSeconds(
+                        MIN_CLIP_DURATION_SECONDS + Math.max(0, Math.min(
+                                mBinding.seekClipDuration.getProgress(),
+                                MAX_CLIP_DURATION_SECONDS - MIN_CLIP_DURATION_SECONDS)));
+                mClipBufferManager.setVideoBitrateBps(mVideoBitrateMbps * 1024 * 1024);
+                mClipBufferManager.start();
+            }
+            updateClipStatus();
         });
 
         mFormatDialog.show(getSupportFragmentManager(), "video_format");
@@ -649,6 +676,9 @@ public class MainActivity extends AppCompatActivity {
             Size size = mCameraHelper.getPreviewSize();
             if (size != null) {
                 resizePreviewView(size);
+                if (size.fps > 0) {
+                    mVideoFrameRate = size.fps;
+                }
             }
 
             if (mBinding.viewMainPreview.getSurfaceTexture() != null) {
@@ -789,8 +819,12 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean hasEnoughStorage() {
         try {
-            StatFs statFs = new StatFs(getFilesDir().getAbsolutePath());
-            return statFs.getAvailableBytes() >= 512L * 1024L * 1024L;
+            File savePath = new File(SaveHelper.getSaveVideoPath());
+            File parent = savePath.getParentFile();
+            String storagePath = parent != null ? parent.getAbsolutePath()
+                    : getExternalFilesDir(null).getAbsolutePath();
+            StatFs statFs = new StatFs(storagePath);
+            return statFs.getAvailableBytes() >= 256L * 1024L * 1024L;
         } catch (Exception e) {
             Log.w(TAG, "Unable to check available storage", e);
             return true;
@@ -886,7 +920,7 @@ public class MainActivity extends AppCompatActivity {
                 mCameraHelper.getVideoCaptureConfig()
                         .setAudioCaptureEnable(false)
                         .setBitRate(mVideoBitrateMbps * 1024 * 1024)
-                        .setVideoFrameRate(25)
+                        .setVideoFrameRate(mVideoFrameRate)
                         .setIFrameInterval(1));
     }
 
