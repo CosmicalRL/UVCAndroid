@@ -585,15 +585,6 @@ public final class ClipBufferManager {
                 throw new IOException("No video track found in buffered segments");
             }
 
-            // Do not carry the source segment's KEY_DURATION into the joined
-            // track. Each rolling segment is ~10 seconds, so preserving that
-            // metadata can make some players report only the first segment even
-            // though samples from all selected segments are present. MediaFormat
-            // exposes removeKey() directly, so strip the duration-related fields
-            // before handing the format to MediaMuxer.
-            videoFormat.removeKey(MediaFormat.KEY_DURATION);
-            videoFormat.removeKey(MediaFormat.KEY_MAX_INPUT_SIZE);
-
             muxer = new MediaMuxer(
                     output.getAbsolutePath(),
                     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
@@ -676,6 +667,18 @@ public final class ClipBufferManager {
                 }
             }
 
+            // Tell MediaMuxer the duration of the final sample explicitly. Android's
+            // MediaMuxer documentation specifies an empty END_OF_STREAM sample for
+            // this purpose. This avoids copying the first 10-second segment's
+            // KEY_DURATION metadata into the joined track while keeping the output
+            // MP4 valid and giving players the full stitched duration.
+            if (lastOutputPts >= 0L) {
+                MediaCodec.BufferInfo endInfo = new MediaCodec.BufferInfo();
+                endInfo.set(0, 0, lastOutputPts + frameDurationUs,
+                        MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                ByteBuffer emptyBuffer = ByteBuffer.allocateDirect(0);
+                muxer.writeSampleData(videoTrack, emptyBuffer, endInfo);
+            }
         } finally {
             if (muxer != null) {
                 if (started) {
