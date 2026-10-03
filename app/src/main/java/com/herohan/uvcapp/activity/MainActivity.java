@@ -732,8 +732,17 @@ public class MainActivity extends AppCompatActivity {
         public void onDetach(UsbDevice device) {
             if (DEBUG) Log.v(TAG, "onDetach:device=" + device.getDeviceName());
 
+            // USB detach can race ahead of the camera-close callback. Stop the
+            // rolling encoder immediately so it cannot continue recording against
+            // a device that has already disappeared.
             if (device.equals(mUsbDevice)) {
+                if (mClipBufferManager != null) {
+                    mClipBufferManager.stop();
+                }
                 mUsbDevice = null;
+                mIsCameraConnected = false;
+                mUiHandler.removeCallbacks(mClipStatusUpdater);
+                updateUIControls();
             }
         }
 
