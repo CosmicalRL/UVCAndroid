@@ -93,6 +93,8 @@ public final class ClipBufferManager {
     private long currentSegmentStartElapsed;
     private ClipCallback pendingClipCallback;
     private boolean clearAfterFinalization;
+    private boolean shuttingDown;
+    private int activeMuxJobs;
 
     // Manual recording temporarily takes over the encoder so the normal Record
     // button and rolling Clip Now buffer cannot fight over the same camera encoder.
@@ -145,6 +147,7 @@ public final class ClipBufferManager {
             return;
         }
         running = true;
+        shuttingDown = false;
         stoppingForClip = false;
         clearAfterFinalization = false;
         cleanupStaleTemporarySegments();
@@ -153,6 +156,7 @@ public final class ClipBufferManager {
 
     public synchronized void stop() {
         running = false;
+        shuttingDown = true;
         stoppingForClip = false;
         manualRecordingRequested = false;
         manualRecordingActive = false;
@@ -337,10 +341,6 @@ public final class ClipBufferManager {
             return;
         }
 
-        if (stoppingForClip) {
-            mainHandler.post(() -> callback.onClipFailed("Clip is already being saved"));
-            return;
-        }
         if (manualRecordingRequested || manualRecordingActive) {
             mainHandler.post(() -> callback.onClipFailed("Stop the current recording before clipping"));
             return;
@@ -371,7 +371,7 @@ public final class ClipBufferManager {
     }
 
     private synchronized void startSegment() {
-        if (!running || stoppingForClip) {
+        if (!running || stoppingForClip || shuttingDown) {
             return;
         }
 
@@ -536,6 +536,9 @@ public final class ClipBufferManager {
         }
 
         final File output = createUniqueClipFile();
+        synchronized (this) {
+            activeMuxJobs++;
+        }
 
         muxExecutor.execute(() -> {
             try {
@@ -569,6 +572,14 @@ public final class ClipBufferManager {
                     }
                     final String error = message;
                     mainHandler.post(() -> requestedCallback.onClipFailed(error));
+                }
+            } finally {
+                synchronized (ClipBufferManager.this) {
+                    activeMuxJobs--;
+                    if (activeMuxJobs == 0 && shuttingDown) {
+                        protectedSegments.clear();
+                        trimRollingBufferLocked();
+                    }
                 }
             }
         });
