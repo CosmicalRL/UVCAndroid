@@ -180,6 +180,13 @@ public final class ClipBufferManager {
         }
 
         clearAfterFinalization = true;
+        ClipCallback pendingClip = pendingClipCallback;
+        pendingClipCallback = null;
+        stoppingForClip = false;
+        clipJobActive = activeMuxJobs > 0;
+        if (pendingClip != null) {
+            mainHandler.post(() -> pendingClip.onClipFailed("Clip buffer stopped before the clip could be saved"));
+        }
         if (cameraHelper != null && cameraHelper.isRecording()) {
             cameraHelper.stopRecording();
         }
@@ -376,6 +383,7 @@ public final class ClipBufferManager {
         if (cameraHelper.isRecording()) {
             cameraHelper.stopRecording();
         } else {
+            pendingClipCallback = null;
             buildClip(callback);
         }
     }
@@ -553,6 +561,10 @@ public final class ClipBufferManager {
         }
 
         if (input.isEmpty()) {
+            synchronized (this) {
+                clipJobActive = false;
+                pendingClipCallback = null;
+            }
             if (requestedCallback != null) {
                 mainHandler.post(() ->
                         requestedCallback.onClipFailed("No video has been buffered yet"));
@@ -589,6 +601,7 @@ public final class ClipBufferManager {
                 safeDelete(output);
                 synchronized (ClipBufferManager.this) {
                     protectedSegments.removeAll(input);
+                    deleteUnqueuedSegmentsLocked(input);
                     trimRollingBufferLocked();
                 }
                 if (requestedCallback != null) {
