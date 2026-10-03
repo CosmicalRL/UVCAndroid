@@ -165,7 +165,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         mUiHandler.removeCallbacks(mClipStatusUpdater);
         if (mClipBufferManager != null) {
-            mClipBufferManager.stop();
+            mClipBufferManager.shutdown();
+            mClipBufferManager = null;
         }
         super.onDestroy();
         clearCameraHelper();
