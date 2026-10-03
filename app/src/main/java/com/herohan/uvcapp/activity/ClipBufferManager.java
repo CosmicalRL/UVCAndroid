@@ -1,7 +1,7 @@
 /*
  * UVCAndroid rolling 30-second clip buffer.
  *
- * The camera is continuously recorded into short MP4 segments. Clip Now
+ * The camera is continuously recorded into 1-second MP4 segments. Clip Now
  * stops the current segment, then muxes the newest segments into one MP4.
  */
 package com.herohan.uvcapp.activity;
@@ -37,7 +37,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Maintains a rolling video buffer made from 10-second MP4 segments.
+ * Maintains a rolling video buffer made from 1-second MP4 segments.
  *
  * This intentionally uses the existing VideoCapture/MediaMuxer pipeline instead
  * of adding another encoder to the UVC camera. Android's MediaMuxer requires
@@ -46,10 +46,10 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ClipBufferManager {
     private static final String TAG = "ClipBufferManager";
-    private static final long SEGMENT_MS = 10_000L;
-    private static final int MAX_SEGMENTS = 12;
-    private static final int MIN_CLIP_SECONDS = 30;
-    private static final int MAX_CLIP_SECONDS = 120;
+    private static final long SEGMENT_MS = 1_000L;
+    private static final int MAX_SEGMENTS = 65;
+    private static final int MIN_CLIP_SECONDS = 5;
+    private static final int MAX_CLIP_SECONDS = 60;
     private static final int DEFAULT_BITRATE_BPS = 6 * 1024 * 1024;
     private static final int MIN_BITRATE_BPS = 1 * 1024 * 1024;
     private static final int MAX_BITRATE_BPS = 250 * 1024 * 1024;
@@ -101,8 +101,8 @@ public final class ClipBufferManager {
 
     public synchronized void setClipDurationSeconds(int seconds) {
         int clamped = Math.max(MIN_CLIP_SECONDS, Math.min(MAX_CLIP_SECONDS, seconds));
-        // Keep the duration aligned to the 10-second rolling segment size.
-        clipDurationSeconds = ((clamped + 5) / 10) * 10;
+        // 1-second segments allow arbitrary whole-second clip lengths.
+        clipDurationSeconds = clamped;
     }
 
     public int getClipDurationSeconds() {
@@ -446,7 +446,8 @@ public final class ClipBufferManager {
             List<File> available = new ArrayList<>(segments);
 
             // The current segment was just added by onVideoSaved.
-            int clipSegments = Math.max(1, clipDurationSeconds / 10);
+            // With 1-second segments, every requested whole-second duration maps
+            // directly to the number of segments to stitch.
             int from = Math.max(0, available.size() - clipSegments);
             input = new ArrayList<>(available.subList(from, available.size()));
 
