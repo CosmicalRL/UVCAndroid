@@ -710,9 +710,14 @@ public final class ClipBufferManager {
                 throw new IOException("Could not publish clip to Gallery", e);
             }
 
-            ContentValues published = new ContentValues();
-            published.put(MediaStore.Video.Media.IS_PENDING, 0);
-            resolver.update(uri, published, null, null);
+            try {
+                ContentValues published = new ContentValues();
+                published.put(MediaStore.Video.Media.IS_PENDING, 0);
+                resolver.update(uri, published, null, null);
+            } catch (Exception e) {
+                resolver.delete(uri, null, null);
+                throw new IOException("Could not finalize clip in Gallery", e);
+            }
 
             // The callback only uses the File name today. Keep that API stable while
             // the actual user-visible copy lives in MediaStore.
@@ -784,6 +789,11 @@ public final class ClipBufferManager {
                     int track = findVideoTrack(extractor);
                     if (track < 0) {
                         continue;
+                    }
+
+                    MediaFormat segmentFormat = extractor.getTrackFormat(track);
+                    if (!isCompatibleVideoFormat(videoFormat, segmentFormat)) {
+                        throw new IOException("Buffered segments use incompatible video formats");
                     }
 
                     extractor.selectTrack(track);
@@ -879,6 +889,17 @@ public final class ClipBufferManager {
                 muxer.release();
             }
         }
+    }
+
+    private static boolean isCompatibleVideoFormat(MediaFormat a, MediaFormat b) {
+        String mimeA = a.getString(MediaFormat.KEY_MIME);
+        String mimeB = b.getString(MediaFormat.KEY_MIME);
+        if (mimeA == null || !mimeA.equals(mimeB)) return false;
+        int widthA = a.containsKey(MediaFormat.KEY_WIDTH) ? a.getInteger(MediaFormat.KEY_WIDTH) : -1;
+        int widthB = b.containsKey(MediaFormat.KEY_WIDTH) ? b.getInteger(MediaFormat.KEY_WIDTH) : -1;
+        int heightA = a.containsKey(MediaFormat.KEY_HEIGHT) ? a.getInteger(MediaFormat.KEY_HEIGHT) : -1;
+        int heightB = b.containsKey(MediaFormat.KEY_HEIGHT) ? b.getInteger(MediaFormat.KEY_HEIGHT) : -1;
+        return widthA == widthB && heightA == heightB;
     }
 
     private static int findVideoTrack(MediaExtractor extractor) {
