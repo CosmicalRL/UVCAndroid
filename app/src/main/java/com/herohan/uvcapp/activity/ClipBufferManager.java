@@ -520,6 +520,7 @@ public final class ClipBufferManager {
                         currentSegment = null;
                         currentSegmentStartElapsed = 0L;
                     }
+                    safeDelete(segmentFile);
                     Log.e(TAG, "Rolling segment failed: " + message, cause);
 
                     if (stoppingForClip) {
@@ -551,6 +552,7 @@ public final class ClipBufferManager {
                 currentSegment = null;
                 currentSegmentStartElapsed = 0L;
             }
+            safeDelete(segmentFile);
             Log.e(TAG, "Could not start rolling segment", e);
             if (running && !stoppingForClip) {
                 scheduler.schedule(() -> {
