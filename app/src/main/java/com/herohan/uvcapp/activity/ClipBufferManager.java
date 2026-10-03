@@ -94,6 +94,7 @@ public final class ClipBufferManager {
     private ClipCallback pendingClipCallback;
     private boolean clearAfterFinalization;
     private boolean shuttingDown;
+    private boolean clipJobActive;
     private int activeMuxJobs;
 
     // Manual recording temporarily takes over the encoder so the normal Record
@@ -150,6 +151,10 @@ public final class ClipBufferManager {
         shuttingDown = false;
         stoppingForClip = false;
         clearAfterFinalization = false;
+        if (activeMuxJobs == 0) {
+            clipJobActive = false;
+            protectedSegments.clear();
+        }
         cleanupStaleTemporarySegments();
         startSegment();
     }
@@ -345,6 +350,10 @@ public final class ClipBufferManager {
             mainHandler.post(() -> callback.onClipFailed("Stop the current recording before clipping"));
             return;
         }
+        if (clipJobActive) {
+            mainHandler.post(() -> callback.onClipFailed("A clip is already being saved"));
+            return;
+        }
 
         int bufferedSeconds = getBufferedSeconds();
         if (bufferedSeconds <= 0) {
@@ -356,6 +365,7 @@ public final class ClipBufferManager {
         // the selected duration is full, the clip contains the most recent available
         // footage instead of refusing to save or falling back to an arbitrary segment.
         stoppingForClip = true;
+        clipJobActive = true;
         pendingClipCallback = callback;
         if (rotateFuture != null) {
             rotateFuture.cancel(false);
@@ -423,9 +433,14 @@ public final class ClipBufferManager {
                         return;
                     }
 
+                    final File segmentForRotation = segmentFile;
                     rotateFuture = scheduler.schedule(() -> {
-                        if (running && !stoppingForClip && cameraHelper.isRecording()) {
-                            cameraHelper.stopRecording();
+                        synchronized (ClipBufferManager.this) {
+                            if (running && !stoppingForClip
+                                    && segmentForRotation.equals(currentSegment)
+                                    && cameraHelper.isRecording()) {
+                                cameraHelper.stopRecording();
+                            }
                         }
                     }, SEGMENT_MS, TimeUnit.MILLISECONDS);
                 }
@@ -437,6 +452,10 @@ public final class ClipBufferManager {
                 synchronized (ClipBufferManager.this) {
                     File saved = segmentFile;
                     if (segmentFile.equals(currentSegment)) {
+                        if (rotateFuture != null) {
+                            rotateFuture.cancel(false);
+                            rotateFuture = null;
+                        }
                         currentSegment = null;
                         currentSegmentStartElapsed = 0L;
                     }
@@ -486,8 +505,14 @@ public final class ClipBufferManager {
 
                     if (stoppingForClip) {
                         stoppingForClip = false;
+                        clipJobActive = false;
+                        ClipCallback cb = pendingClipCallback;
+                        pendingClipCallback = null;
                         if (running) {
                             startSegment();
+                        }
+                        if (cb != null) {
+                            mainHandler.post(() -> cb.onClipFailed("Could not finalize the buffered segment: " + message));
                         }
                     } else if (running) {
                         // Give the camera a short recovery window before retrying.
@@ -552,6 +577,7 @@ public final class ClipBufferManager {
                 safeDelete(output);
                 synchronized (ClipBufferManager.this) {
                     protectedSegments.removeAll(input);
+                    deleteUnqueuedSegmentsLocked(input);
                     trimRollingBufferLocked();
                 }
 
@@ -576,7 +602,9 @@ public final class ClipBufferManager {
             } finally {
                 synchronized (ClipBufferManager.this) {
                     activeMuxJobs--;
+                    clipJobActive = false;
                     if (activeMuxJobs == 0 && shuttingDown) {
+                        deleteProtectedSegmentsLocked();
                         protectedSegments.clear();
                         trimRollingBufferLocked();
                     }
@@ -859,12 +887,32 @@ public final class ClipBufferManager {
 
     private synchronized void trimRollingBufferLocked() {
         while (segments.size() > MAX_SEGMENTS) {
-            File old = segments.peekFirst();
-            if (old == null || protectedSegments.contains(old) || old.equals(currentSegment)) {
-                break;
+            File removable = null;
+            for (File candidate : segments) {
+                if (!protectedSegments.contains(candidate) && !candidate.equals(currentSegment)) {
+                    removable = candidate;
+                    break;
+                }
             }
-            segments.removeFirst();
-            safeDelete(old);
+            if (removable == null) break;
+            segments.remove(removable);
+            safeDelete(removable);
+        }
+    }
+
+    private synchronized void deleteUnqueuedSegmentsLocked(List<File> files) {
+        for (File file : files) {
+            if (file != null && !segments.contains(file) && !file.equals(currentSegment)) {
+                safeDelete(file);
+            }
+        }
+    }
+
+    private synchronized void deleteProtectedSegmentsLocked() {
+        for (File file : new ArrayList<>(protectedSegments)) {
+            if (file != null && !segments.contains(file) && !file.equals(currentSegment)) {
+                safeDelete(file);
+            }
         }
     }
 
