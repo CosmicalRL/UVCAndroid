@@ -286,7 +286,8 @@ public final class ClipBufferManager {
 
         VideoCapture.OutputFileOptions options =
                 new VideoCapture.OutputFileOptions.Builder(outputFile).build();
-        cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
+        try {
+            cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
             @Override
             public void onStart() {
                 ManualRecordCallback cb;
@@ -418,7 +419,18 @@ public final class ClipBufferManager {
                         .setBitRate(videoBitrateBps)
                         .setAudioCaptureEnable(false));
 
-        File output = createTemporarySegmentFile();
+        final File output;
+        try {
+            output = createTemporarySegmentFile();
+        } catch (RuntimeException e) {
+            Log.e(TAG, "Could not create rolling segment", e);
+            scheduler.schedule(() -> {
+                synchronized (ClipBufferManager.this) {
+                    if (running && !stoppingForClip) startSegment();
+                }
+            }, 500L, TimeUnit.MILLISECONDS);
+            return;
+        }
         currentSegment = output;
 
         final File segmentFile = output;
@@ -535,6 +547,20 @@ public final class ClipBufferManager {
                 }
             }
         });
+        } catch (RuntimeException e) {
+            if (segmentFile.equals(currentSegment)) {
+                currentSegment = null;
+                currentSegmentStartElapsed = 0L;
+            }
+            Log.e(TAG, "Could not start rolling segment", e);
+            if (running && !stoppingForClip) {
+                scheduler.schedule(() -> {
+                    synchronized (ClipBufferManager.this) {
+                        if (running && !stoppingForClip) startSegment();
+                    }
+                }, 500L, TimeUnit.MILLISECONDS);
+            }
+        }
     }
 
     private void buildClip(ClipCallback requestedCallback) {
@@ -572,12 +598,27 @@ public final class ClipBufferManager {
             return;
         }
 
-        final File output = createUniqueClipFile();
+        final File output;
+        try {
+            output = createUniqueClipFile();
+        } catch (Exception e) {
+            synchronized (this) {
+                clipJobActive = false;
+                stoppingForClip = false;
+                pendingClipCallback = null;
+            }
+            if (requestedCallback != null) {
+                final String message = e.getMessage() == null ? "Could not create clip output file" : e.getMessage();
+                mainHandler.post(() -> requestedCallback.onClipFailed(message));
+            }
+            return;
+        }
         synchronized (this) {
             activeMuxJobs++;
         }
 
-        muxExecutor.execute(() -> {
+        try {
+            muxExecutor.execute(() -> {
             try {
                 muxSegments(input, output);
 
@@ -623,7 +664,18 @@ public final class ClipBufferManager {
                     }
                 }
             }
-        });
+        } catch (RuntimeException e) {
+            synchronized (this) {
+                activeMuxJobs--;
+                clipJobActive = false;
+                stoppingForClip = false;
+            }
+            safeDelete(output);
+            if (requestedCallback != null) {
+                final String message = e.getMessage() == null ? "Could not queue clip save" : e.getMessage();
+                mainHandler.post(() -> requestedCallback.onClipFailed(message));
+            }
+        }
     }
 
     private void cleanupStaleTemporarySegments() {
