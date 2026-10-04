@@ -492,7 +492,16 @@ public class MainActivity extends AppCompatActivity {
 
             mVideoFrameRate = Math.max(1, size.fps);
             mCameraHelper.stopPreview();
-            mCameraHelper.setPreviewSize(size);
+            try {
+                mCameraHelper.setPreviewSize(size);
+            } catch (RuntimeException e) {
+                Toast.makeText(this, "That quality isn't supported by this camera, staying on the previous setting.", Toast.LENGTH_LONG).show();
+                // The camera object may have been destroyed internally. Reconnecting
+                // the device is the safe recovery path rather than assuming it still works.
+                mIsCameraConnected = false;
+                updateUIControls();
+                return;
+            }
             mCameraHelper.startPreview();
             resizePreviewView(size);
             setSavedPreviewSize(size);
