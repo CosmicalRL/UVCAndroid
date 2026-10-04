@@ -286,7 +286,8 @@ public final class ClipBufferManager {
 
         VideoCapture.OutputFileOptions options =
                 new VideoCapture.OutputFileOptions.Builder(outputFile).build();
-        cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
+        try {
+            cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
             @Override
             public void onStart() {
                 ManualRecordCallback cb;
