@@ -286,142 +286,143 @@ public final class ClipBufferManager {
 
         VideoCapture.OutputFileOptions options =
                 new VideoCapture.OutputFileOptions.Builder(outputFile).build();
-        cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
-            @Override
-            public void onStart() {
-                ManualRecordCallback cb;
-                synchronized (ClipBufferManager.this) {
-                    cb = manualRecordCallback;
-                }
-                if (cb != null) {
-                    mainHandler.post(cb::onStart);
-                }
-            }
-
-            @Override
-            public void onVideoSaved(@NonNull VideoCapture.OutputFileResults outputFileResults) {
-                ManualRecordCallback cb;
-                File saved;
-                synchronized (ClipBufferManager.this) {
-                    saved = manualOutputFile;
-                    manualOutputFile = null;
-                    cb = manualRecordCallback;
-                    manualRecordCallback = null;
-                    manualRecordingActive = false;
-                }
-
-                if (saved != null && saved.exists() && saved.length() > 0) {
-                    if (cb != null) {
-                        mainHandler.post(() -> cb.onSaved(saved));
-                    }
-                } else if (cb != null) {
-                    mainHandler.post(() -> cb.onError("Recording did not produce a video file"));
-                }
-
-                synchronized (ClipBufferManager.this) {
-                    if (running && !stoppingForClip && !cameraHelper.isRecording()) {
-                        startSegment();
-                    }
-                }
-            }
-
-            @Override
-            public void onError(int error, @NonNull String message, Throwable cause) {
-                ManualRecordCallback cb;
-                synchronized (ClipBufferManager.this) {
-                    cb = manualRecordCallback;
-                    manualRecordCallback = null;
-                    manualOutputFile = null;
-                    manualRecordingActive = false;
-                }
-                Log.e(TAG, "Manual recording failed: " + message, cause);
-                if (cb != null) {
-                    mainHandler.post(() -> cb.onError(message));
-                }
-                synchronized (ClipBufferManager.this) {
-                    if (running && !stoppingForClip && !cameraHelper.isRecording()) {
-                        startSegment();
-                    }
-                }
-            }
-        });
-    }
-
-    public synchronized void clipNow(@NonNull ClipCallback callback) {
-        if (!running) {
-            mainHandler.post(() -> callback.onClipFailed("Clip buffer is not running"));
-            return;
-        }
-
-        if (manualRecordingRequested || manualRecordingActive) {
-            mainHandler.post(() -> callback.onClipFailed("Stop the current recording before clipping"));
-            return;
-        }
-        if (clipJobActive) {
-            mainHandler.post(() -> callback.onClipFailed("A clip is already being saved"));
-            return;
-        }
-
-        int bufferedSeconds = getBufferedSeconds();
-        if (bufferedSeconds <= 0) {
-            mainHandler.post(() -> callback.onClipFailed("No video has been buffered yet"));
-            return;
-        }
-
-        // Clip whatever is currently available. If the user presses Clip Now before
-        // the selected duration is full, the clip contains the most recent available
-        // footage instead of refusing to save or falling back to an arbitrary segment.
-        stoppingForClip = true;
-        clipJobActive = true;
-        pendingClipCallback = callback;
-        if (rotateFuture != null) {
-            rotateFuture.cancel(false);
-            rotateFuture = null;
-        }
-
-        // Finish the current segment first so the newest footage is included.
-        if (cameraHelper.isRecording()) {
-            cameraHelper.stopRecording();
-        } else {
-            pendingClipCallback = null;
-            buildClip(callback);
-        }
-    }
-
-    private synchronized void startSegment() {
-        if (!running || stoppingForClip || shuttingDown) {
-            return;
-        }
-
-        // VideoCapture finalizes a recording asynchronously. Its onVideoSaved callback
-        // can arrive just before the encoder resources are fully released, so immediately
-        // starting the next 1-second segment can race with the previous stop. Wait until
-        // the encoder reports idle instead of silently dropping the next segment.
-        if (cameraHelper.isRecording()) {
-            if (startRetryFuture == null || startRetryFuture.isDone()) {
-                startRetryFuture = scheduler.schedule(() -> {
+        try {
+            cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
+                @Override
+                public void onStart() {
+                    ManualRecordCallback cb;
                     synchronized (ClipBufferManager.this) {
-                        startRetryFuture = null;
-                        if (running && !stoppingForClip) {
+                        cb = manualRecordCallback;
+                    }
+                    if (cb != null) {
+                        mainHandler.post(cb::onStart);
+                    }
+                }
+
+                @Override
+                public void onVideoSaved(@NonNull VideoCapture.OutputFileResults outputFileResults) {
+                    ManualRecordCallback cb;
+                    File saved;
+                    synchronized (ClipBufferManager.this) {
+                        saved = manualOutputFile;
+                        manualOutputFile = null;
+                        cb = manualRecordCallback;
+                        manualRecordCallback = null;
+                        manualRecordingActive = false;
+                    }
+
+                    if (saved != null && saved.exists() && saved.length() > 0) {
+                        if (cb != null) {
+                            mainHandler.post(() -> cb.onSaved(saved));
+                        }
+                    } else if (cb != null) {
+                        mainHandler.post(() -> cb.onError("Recording did not produce a video file"));
+                    }
+
+                    synchronized (ClipBufferManager.this) {
+                        if (running && !stoppingForClip && !cameraHelper.isRecording()) {
                             startSegment();
                         }
                     }
-                }, 50L, TimeUnit.MILLISECONDS);
+                }
+
+                @Override
+                public void onError(int error, @NonNull String message, Throwable cause) {
+                    ManualRecordCallback cb;
+                    synchronized (ClipBufferManager.this) {
+                        cb = manualRecordCallback;
+                        manualRecordCallback = null;
+                        manualOutputFile = null;
+                        manualRecordingActive = false;
+                    }
+                    Log.e(TAG, "Manual recording failed: " + message, cause);
+                    if (cb != null) {
+                        mainHandler.post(() -> cb.onError(message));
+                    }
+                    synchronized (ClipBufferManager.this) {
+                        if (running && !stoppingForClip && !cameraHelper.isRecording()) {
+                            startSegment();
+                        }
+                    }
+                }
+            });
+    }
+
+    public synchronized void clipNow(@NonNull ClipCallback callback) {
+            if (!running) {
+                mainHandler.post(() -> callback.onClipFailed("Clip buffer is not running"));
+                return;
             }
-            return;
-        }
 
-        // ClipBufferManager never needs microphone audio because the final clip mux is
-        // video-only. Disabling it also makes segment stop/save operations much lighter.
-        cameraHelper.setVideoCaptureConfig(
-                cameraHelper.getVideoCaptureConfig()
-                        .setBitRate(videoBitrateBps)
-                        .setAudioCaptureEnable(false));
+            if (manualRecordingRequested || manualRecordingActive) {
+                mainHandler.post(() -> callback.onClipFailed("Stop the current recording before clipping"));
+                return;
+            }
+            if (clipJobActive) {
+                mainHandler.post(() -> callback.onClipFailed("A clip is already being saved"));
+                return;
+            }
 
-        final File output;
-        try {
-            output = createTemporarySegmentFile();
-        } catch (RuntimeException e) {
+            int bufferedSeconds = getBufferedSeconds();
+            if (bufferedSeconds <= 0) {
+                mainHandler.post(() -> callback.onClipFailed("No video has been buffered yet"));
+                return;
+            }
+
+            // Clip whatever is currently available. If the user presses Clip Now before
+            // the selected duration is full, the clip contains the most recent available
+            // footage instead of refusing to save or falling back to an arbitrary segment.
+            stoppingForClip = true;
+            clipJobActive = true;
+            pendingClipCallback = callback;
+            if (rotateFuture != null) {
+                rotateFuture.cancel(false);
+                rotateFuture = null;
+            }
+
+            // Finish the current segment first so the newest footage is included.
+            if (cameraHelper.isRecording()) {
+                cameraHelper.stopRecording();
+            } else {
+                pendingClipCallback = null;
+                buildClip(callback);
+            }
+    }
+
+    private synchronized void startSegment() {
+            if (!running || stoppingForClip || shuttingDown) {
+                return;
+            }
+
+            // VideoCapture finalizes a recording asynchronously. Its onVideoSaved callback
+            // can arrive just before the encoder resources are fully released, so immediately
+            // starting the next 1-second segment can race with the previous stop. Wait until
+            // the encoder reports idle instead of silently dropping the next segment.
+            if (cameraHelper.isRecording()) {
+                if (startRetryFuture == null || startRetryFuture.isDone()) {
+                    startRetryFuture = scheduler.schedule(() -> {
+                        synchronized (ClipBufferManager.this) {
+                            startRetryFuture = null;
+                            if (running && !stoppingForClip) {
+                                startSegment();
+                            }
+                        }
+                    }, 50L, TimeUnit.MILLISECONDS);
+                }
+                return;
+            }
+
+            // ClipBufferManager never needs microphone audio because the final clip mux is
+            // video-only. Disabling it also makes segment stop/save operations much lighter.
+            cameraHelper.setVideoCaptureConfig(
+                    cameraHelper.getVideoCaptureConfig()
+                            .setBitRate(videoBitrateBps)
+                            .setAudioCaptureEnable(false));
+
+            final File output;
+            try {
+                output = createTemporarySegmentFile();        } catch (RuntimeException e) {
+
             Log.e(TAG, "Could not create rolling segment", e);
             scheduler.schedule(() -> {
                 synchronized (ClipBufferManager.this) {
