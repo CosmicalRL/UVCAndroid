@@ -287,6 +287,7 @@ public final class ClipBufferManager {
         VideoCapture.OutputFileOptions options =
                 new VideoCapture.OutputFileOptions.Builder(outputFile).build();
         try {
+            try {
             cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
                 @Override
                 public void onStart() {
@@ -547,7 +548,7 @@ public final class ClipBufferManager {
                     }
                 }
             }
-        });
+            });
         } catch (RuntimeException e) {
             if (segmentFile.equals(currentSegment)) {
                 currentSegment = null;
