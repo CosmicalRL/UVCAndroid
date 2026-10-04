@@ -139,6 +139,9 @@ final class CameraInternal implements ICameraInternal {
                     mUVCCamera = null;
                 }
             }
+            // Tell the caller this failed instead of silently continuing as if
+            // the format change succeeded while the camera was actually destroyed.
+            throw new RuntimeException("Failed to apply preview size " + size, e);
         }
     }
 
