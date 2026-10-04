@@ -382,6 +382,23 @@ public final class ClipBufferManager {
             // Finish the current segment first so the newest footage is included.
             if (cameraHelper.isRecording()) {
                 cameraHelper.stopRecording();
+                // Safety net: if the encoder was silently killed (e.g. by a failed
+                // quality change), onVideoSaved/onError may never fire and this
+                // clip would otherwise wait forever, permanently wedging Clip Now.
+                scheduler.schedule(() -> {
+                    synchronized (ClipBufferManager.this) {
+                        if (clipJobActive && pendingClipCallback == callback) {
+                            Log.e(TAG, "Clip timed out waiting for segment to finalize");
+                            stoppingForClip = false;
+                            clipJobActive = false;
+                            pendingClipCallback = null;
+                            mainHandler.post(() -> callback.onClipFailed("Clip timed out, camera may need reconnecting"));
+                            if (running && !cameraHelper.isRecording()) {
+                                startSegment();
+                            }
+                        }
+                    }
+                }, 4000L, TimeUnit.MILLISECONDS);
             } else {
                 pendingClipCallback = null;
                 buildClip(callback);
