@@ -547,21 +547,6 @@ public final class ClipBufferManager {
                 }
             }
             });
-        } catch (RuntimeException e) {
-            if (segmentFile.equals(currentSegment)) {
-                currentSegment = null;
-                currentSegmentStartElapsed = 0L;
-            }
-            safeDelete(segmentFile);
-            Log.e(TAG, "Could not start rolling segment", e);
-            if (running && !stoppingForClip) {
-                scheduler.schedule(() -> {
-                    synchronized (ClipBufferManager.this) {
-                        if (running && !stoppingForClip) startSegment();
-                    }
-                }, 500L, TimeUnit.MILLISECONDS);
-            }
-        }
     }
 
     private void buildClip(ClipCallback requestedCallback) {
