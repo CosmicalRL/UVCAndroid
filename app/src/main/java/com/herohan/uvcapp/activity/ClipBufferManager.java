@@ -672,6 +672,7 @@ public final class ClipBufferManager {
                     }
                 }
             }
+            });
         } catch (RuntimeException e) {
             synchronized (this) {
                 activeMuxJobs--;
