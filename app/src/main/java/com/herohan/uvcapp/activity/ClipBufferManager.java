@@ -286,67 +286,65 @@ public final class ClipBufferManager {
 
         VideoCapture.OutputFileOptions options =
                 new VideoCapture.OutputFileOptions.Builder(outputFile).build();
-        try {
-            try {
-            cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
-                @Override
-                public void onStart() {
-                    ManualRecordCallback cb;
-                    synchronized (ClipBufferManager.this) {
-                        cb = manualRecordCallback;
-                    }
+        cameraHelper.startRecording(options, new VideoCapture.OnVideoCaptureCallback() {
+            @Override
+            public void onStart() {
+                ManualRecordCallback cb;
+                synchronized (ClipBufferManager.this) {
+                    cb = manualRecordCallback;
+                }
+                if (cb != null) {
+                    mainHandler.post(cb::onStart);
+                }
+            }
+
+            @Override
+            public void onVideoSaved(@NonNull VideoCapture.OutputFileResults outputFileResults) {
+                ManualRecordCallback cb;
+                File saved;
+                synchronized (ClipBufferManager.this) {
+                    saved = manualOutputFile;
+                    manualOutputFile = null;
+                    cb = manualRecordCallback;
+                    manualRecordCallback = null;
+                    manualRecordingActive = false;
+                }
+
+                if (saved != null && saved.exists() && saved.length() > 0) {
                     if (cb != null) {
-                        mainHandler.post(cb::onStart);
+                        mainHandler.post(() -> cb.onSaved(saved));
                     }
+                } else if (cb != null) {
+                    mainHandler.post(() -> cb.onError("Recording did not produce a video file"));
                 }
 
-                @Override
-                public void onVideoSaved(@NonNull VideoCapture.OutputFileResults outputFileResults) {
-                    ManualRecordCallback cb;
-                    File saved;
-                    synchronized (ClipBufferManager.this) {
-                        saved = manualOutputFile;
-                        manualOutputFile = null;
-                        cb = manualRecordCallback;
-                        manualRecordCallback = null;
-                        manualRecordingActive = false;
-                    }
-
-                    if (saved != null && saved.exists() && saved.length() > 0) {
-                        if (cb != null) {
-                            mainHandler.post(() -> cb.onSaved(saved));
-                        }
-                    } else if (cb != null) {
-                        mainHandler.post(() -> cb.onError("Recording did not produce a video file"));
-                    }
-
-                    synchronized (ClipBufferManager.this) {
-                        if (running && !stoppingForClip && !cameraHelper.isRecording()) {
-                            startSegment();
-                        }
+                synchronized (ClipBufferManager.this) {
+                    if (running && !stoppingForClip && !cameraHelper.isRecording()) {
+                        startSegment();
                     }
                 }
+            }
 
-                @Override
-                public void onError(int error, @NonNull String message, Throwable cause) {
-                    ManualRecordCallback cb;
-                    synchronized (ClipBufferManager.this) {
-                        cb = manualRecordCallback;
-                        manualRecordCallback = null;
-                        manualOutputFile = null;
-                        manualRecordingActive = false;
-                    }
-                    Log.e(TAG, "Manual recording failed: " + message, cause);
-                    if (cb != null) {
-                        mainHandler.post(() -> cb.onError(message));
-                    }
-                    synchronized (ClipBufferManager.this) {
-                        if (running && !stoppingForClip && !cameraHelper.isRecording()) {
-                            startSegment();
-                        }
+            @Override
+            public void onError(int error, @NonNull String message, Throwable cause) {
+                ManualRecordCallback cb;
+                synchronized (ClipBufferManager.this) {
+                    cb = manualRecordCallback;
+                    manualRecordCallback = null;
+                    manualOutputFile = null;
+                    manualRecordingActive = false;
+                }
+                Log.e(TAG, "Manual recording failed: " + message, cause);
+                if (cb != null) {
+                    mainHandler.post(() -> cb.onError(message));
+                }
+                synchronized (ClipBufferManager.this) {
+                    if (running && !stoppingForClip && !cameraHelper.isRecording()) {
+                        startSegment();
                     }
                 }
-            });
+            }
+        });
     }
 
     public synchronized void clipNow(@NonNull ClipCallback callback) {
