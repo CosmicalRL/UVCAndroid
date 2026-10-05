@@ -398,7 +398,12 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                // The rolling buffer applies the new bitrate when the next segment starts.
+                // A bitrate change creates a new encoder configuration. Clear the
+                // old segments so Clip Now can never try to stitch two configurations.
+                if (mClipBufferManager != null && mIsCameraConnected && !mIsRecording) {
+                    mClipBufferManager.restartRollingBuffer();
+                    updateClipStatus();
+                }
             }
         });
         // 6 Mbps is the default balance of quality and file size.
