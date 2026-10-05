@@ -440,6 +440,11 @@ public final class ClipBufferManager {
             cameraHelper.setVideoCaptureConfig(
                     cameraHelper.getVideoCaptureConfig()
                             .setBitRate(videoBitrateBps)
+                            // Every rolling segment must be independently decodable.
+                            // The encoder is restarted every second, so requesting all
+                            // keyframes prevents the muxer from having to discard the
+                            // leading predictive frames of a segment.
+                            .setIFrameInterval(0)
                             .setAudioCaptureEnable(false));
 
             final File output;
