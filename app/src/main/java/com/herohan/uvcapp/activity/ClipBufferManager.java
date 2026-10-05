@@ -135,6 +135,13 @@ public final class ClipBufferManager {
         return videoBitrateBps;
     }
 
+    /** Restart the rolling encoder after a format-affecting setting changes. */
+    public synchronized void restartRollingBuffer() {
+        if (!running) return;
+        stop();
+        start();
+    }
+
     public synchronized int getBufferedSeconds() {
         long bufferedMs = segments.size() * SEGMENT_MS;
         if (cameraHelper.isRecording() && currentSegmentStartElapsed > 0L) {
@@ -854,7 +861,10 @@ public final class ClipBufferManager {
 
                     MediaFormat segmentFormat = extractor.getTrackFormat(track);
                     if (!isCompatibleVideoFormat(videoFormat, segmentFormat)) {
-                        throw new IOException("Buffered segments use incompatible video formats");
+                        Log.w(TAG, "Skipping incompatible buffered segment: " + file.getName()
+                                + " (" + formatSummary(segmentFormat)
+                                + " vs " + formatSummary(videoFormat) + ")");
+                        continue;
                     }
 
                     extractor.selectTrack(track);
@@ -965,6 +975,17 @@ public final class ClipBufferManager {
         int heightA = a.containsKey(MediaFormat.KEY_HEIGHT) ? a.getInteger(MediaFormat.KEY_HEIGHT) : -1;
         int heightB = b.containsKey(MediaFormat.KEY_HEIGHT) ? b.getInteger(MediaFormat.KEY_HEIGHT) : -1;
         return widthA == widthB && heightA == heightB;
+    }
+
+    private static String formatSummary(MediaFormat format) {
+        if (format == null) return "null";
+        String mime = format.containsKey(MediaFormat.KEY_MIME)
+                ? format.getString(MediaFormat.KEY_MIME) : "?";
+        int width = format.containsKey(MediaFormat.KEY_WIDTH)
+                ? format.getInteger(MediaFormat.KEY_WIDTH) : -1;
+        int height = format.containsKey(MediaFormat.KEY_HEIGHT)
+                ? format.getInteger(MediaFormat.KEY_HEIGHT) : -1;
+        return mime + " " + width + "x" + height;
     }
 
     private static int findVideoTrack(MediaExtractor extractor) {
